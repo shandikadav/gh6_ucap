@@ -5,14 +5,14 @@ class UserService {
 
   UserService(this.userId);
 
-  Future insertUserData(String name, String role, String createdAt) async {
+  Future insertUserData(String fullname, String email, String createdAt) async {
     final CollectionReference userCollection = FirebaseFirestore.instance
         .collection('users');
-
     try {
       await userCollection.doc(userId).set({
-        'name': name,
-        'email': role,
+        'fullname': fullname,
+        'email': email,
+        'exp': 0,
         'createdAt': createdAt,
       });
       print('User data inserted successfully');

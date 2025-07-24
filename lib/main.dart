@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:gh6_ucap/bloc/auth/auth_bloc.dart';
 import 'package:gh6_ucap/bloc/login/login_bloc.dart';
 import 'package:gh6_ucap/firebase_options.dart';
 import 'package:gh6_ucap/routes/routes.dart';
@@ -21,7 +22,9 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MultiBlocProvider(
-      providers: [BlocProvider(create: (context) => LoginBloc())],
+      providers: [BlocProvider(create: (context) => LoginBloc()),
+      BlocProvider(create: (context) => AuthBloc()),
+      ],
       child: ScreenUtilInit(
         designSize: const Size(412, 917),
         minTextAdapt: true,
