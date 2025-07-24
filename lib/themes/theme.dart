@@ -10,6 +10,7 @@ class AppTheme {
   static const Color accentColor = Color(0xFF42A5F5);
   static const Color successColor = Color(0xFF4CAF50);
   static const Color errorColor = Color(0xFFF44336);
+  static const Color redColor = Color(0xFFFF5854);
 
   static const Color backgroundColor = Color(0xFFF8F5EE);
   static const Color surfaceColor = Colors.white;
