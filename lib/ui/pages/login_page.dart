@@ -41,7 +41,7 @@ class _LoginPageState extends State<LoginPage> {
               ),
             );
             // Navigate to home page
-            routes.goNamed(RouteName.register);
+            routes.goNamed(RouteName.main);
           } else if (state is AuthFailure) {
             Navigator.of(context).pop(); // Close loading dialog
             ScaffoldMessenger.of(context).showSnackBar(

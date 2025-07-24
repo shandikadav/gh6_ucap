@@ -36,6 +36,7 @@ class HomePage extends StatelessWidget {
                         _StoryCard(),
                         SizedBox(height: 24.h),
                         _CharacterStatusCard(),
+                        SizedBox(height: 100.r),
                       ],
                     ),
                   ),

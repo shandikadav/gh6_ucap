@@ -11,8 +11,8 @@ final routes = GoRouter(
   routes: [
     GoRoute(
       path: '/',
-      name: RouteName.main,
-      builder: (context, state) => MainPage(),
+      name: RouteName.splash,
+      builder: (context, state) => SplashPage(),
     ),
     GoRoute(
       path: '/register',
@@ -28,6 +28,11 @@ final routes = GoRouter(
       path: '/onboarding',
       name: RouteName.onboarding,
       builder: (context, state) => OnboardingPage(),
+    ),
+    GoRoute(
+      path: '/main',
+      name: RouteName.main,
+      builder: (context, state) => MainPage(),
     ),
   ],
 );
