@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gh6_ucap/bloc/auth/auth_bloc.dart';
 import 'package:gh6_ucap/routes/routes.dart';
 import 'package:gh6_ucap/themes/theme.dart';
@@ -78,20 +79,19 @@ class _RegisterPageState extends State<RegisterPage> {
                 _buildTextField(
                   hintText: 'Nama Lengkap',
                   icon: Icons.person_outline_rounded,
-                  suffixIcon: Icons.check_circle_rounded,
                   isSuffixVisible: true,
                   controller: fullnameController,
                 ),
-                const SizedBox(height: 20),
+                SizedBox(height: 16.h),
                 _buildTextField(
                   hintText: 'Email',
                   icon: Icons.email_outlined,
                   keyboardType: TextInputType.emailAddress,
-                  suffixIcon: Icons.check_circle_rounded,
+
                   isSuffixVisible: true,
                   controller: emailController,
                 ),
-                const SizedBox(height: 20),
+                SizedBox(height: 16.h),
                 _buildTextField(
                   hintText: 'Password',
                   icon: Icons.lock_outline_rounded,
@@ -128,24 +128,17 @@ class _RegisterPageState extends State<RegisterPage> {
       obscureText: isPassword && !_isPasswordVisible,
       keyboardType: keyboardType,
       controller: controller,
+      style: AppTheme.body1,
       decoration: InputDecoration(
         hintText: hintText,
-        prefixIcon: Icon(icon, color: AppTheme.textSecondaryColor),
+        hintStyle: AppTheme.body2,
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16).r,
           borderSide: BorderSide(color: Colors.grey.shade300, width: 1.5),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16).r,
           borderSide: BorderSide(color: AppTheme.primaryColor, width: 2),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Colors.red, width: 2),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Colors.red, width: 2),
         ),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
@@ -181,9 +174,9 @@ class _RegisterPageState extends State<RegisterPage> {
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
           backgroundColor: AppTheme.primaryColor,
-          padding: const EdgeInsets.symmetric(vertical: 16),
+          padding: const EdgeInsets.symmetric(vertical: 16).r,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(38),
+            borderRadius: BorderRadius.circular(24),
           ),
         ),
         onPressed: () {
@@ -208,7 +201,7 @@ class _RegisterPageState extends State<RegisterPage> {
             ),
           );
         },
-        child: Text('SIGN-UP', style: AppTheme.button),
+        child: Text('Daftar', style: AppTheme.button.copyWith(fontSize: 16.sp)),
       ),
     );
   }
@@ -225,15 +218,18 @@ class _RegisterPageState extends State<RegisterPage> {
           foregroundColor: AppTheme.textPrimaryColor,
           padding: const EdgeInsets.symmetric(vertical: 16),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(16).r,
           ),
           side: BorderSide(color: Colors.grey.shade300, width: 1.5),
         ),
         icon: Padding(
-          padding: const EdgeInsets.only(right: 20),
+          padding: const EdgeInsets.only(right: 20).r,
           child: Image.asset('assets/google_logo.png', height: 24),
         ),
-        label: Text('CONTINUE WITH GOOGLE', style: AppTheme.subtitle1),
+        label: Text(
+          'Daftar Dengan Google',
+          style: AppTheme.body1.copyWith(fontSize: 16.sp),
+        ),
       ),
     );
   }

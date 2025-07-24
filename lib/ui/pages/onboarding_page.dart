@@ -84,7 +84,10 @@ class OnboardingPage extends StatelessWidget {
                       ),
                       padding: const EdgeInsets.symmetric(vertical: 16).r,
                     ),
-                    child: Text('SIGN UP', style: AppTheme.button),
+                    child: Text(
+                      'Daftar',
+                      style: AppTheme.button.copyWith(fontSize: 16.sp),
+                    ),
                   ),
 
                   SizedBox(height: 16.h),
@@ -92,13 +95,13 @@ class OnboardingPage extends StatelessWidget {
                   // Link Log In
                   Text.rich(
                     TextSpan(
-                      text: 'ALREADY HAVE AN ACCOUNT? ',
-                      style: AppTheme.body2.copyWith(fontSize: 12.sp),
+                      text: 'Sudah Punya Akun? ',
+                      style: AppTheme.body2.copyWith(fontSize: 14.sp),
                       children: [
                         TextSpan(
-                          text: 'LOG IN',
+                          text: 'Masuk',
                           style: AppTheme.body2.copyWith(
-                            fontSize: 12.sp,
+                            fontSize: 14.sp,
                             fontWeight: FontWeight.bold,
                             color: AppTheme.primaryColor,
                           ),
