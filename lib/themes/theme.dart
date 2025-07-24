@@ -65,7 +65,7 @@ class AppTheme {
   static final TextStyle button = GoogleFonts.inter(
     fontSize: 16,
     fontWeight: FontWeight.bold,
-    color: textPrimaryColor,
+    color: Colors.white,
   );
 
   static final TextStyle caption = GoogleFonts.inter(
