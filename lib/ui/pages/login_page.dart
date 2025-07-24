@@ -21,14 +21,7 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.surfaceColor,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: AppTheme.textPrimaryColor),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-      ),
+      appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
       body: BlocListener<AuthBloc, AuthState>(
         listener: (context, state) {
           if (state is AuthLoading) {
@@ -48,7 +41,7 @@ class _LoginPageState extends State<LoginPage> {
               ),
             );
             // Navigate to home page
-            // routes.pushReplacementNamed(RouteName.home);
+            routes.goNamed(RouteName.register);
           } else if (state is AuthFailure) {
             Navigator.of(context).pop(); // Close loading dialog
             ScaffoldMessenger.of(context).showSnackBar(

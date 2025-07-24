@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gh6_ucap/bloc/auth/auth_bloc.dart';
+import 'package:gh6_ucap/routes/routes.dart';
 import 'package:gh6_ucap/themes/theme.dart';
 
 class RegisterPage extends StatefulWidget {
@@ -25,7 +26,7 @@ class _RegisterPageState extends State<RegisterPage> {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () => routes.goNamed(RouteName.login),
         ),
         backgroundColor: Colors.white,
       ),
