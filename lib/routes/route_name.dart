@@ -6,4 +6,5 @@ abstract class RouteName {
   static const login = 'login';
   static const home = 'home';
   static const register = 'register';
+  static const main = 'main';
 }

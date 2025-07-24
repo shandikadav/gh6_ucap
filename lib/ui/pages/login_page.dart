@@ -164,7 +164,10 @@ class _LoginPageState extends State<LoginPage> {
                         onPressed: () {
                           // TODO: Handle logic lupa password
                         },
-                        child: Text('Forgot Password?', style: AppTheme.body2),
+                        child: Text(
+                          'Lupa Password?',
+                          style: AppTheme.body2.copyWith(fontSize: 14.sp),
+                        ),
                       ),
                     ),
 
@@ -216,8 +219,9 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                             )
                           : Text(
-                              'LOGIN',
+                              'Login',
                               style: AppTheme.button.copyWith(
+                                fontSize: 18.sp,
                                 color: AppTheme.textLightColor,
                               ),
                             ),
@@ -236,10 +240,8 @@ class _LoginPageState extends State<LoginPage> {
                             },
                       icon: Image.asset('assets/google_logo.png', height: 22.h),
                       label: Text(
-                        'CONTINUE WITH GOOGLE',
-                        style: AppTheme.subtitle1.copyWith(
-                          fontWeight: FontWeight.w300,
-                        ),
+                        'Masuk Dengan Google',
+                        style: AppTheme.body1.copyWith(fontSize: 14.sp),
                       ),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppTheme.textPrimaryColor,
@@ -268,11 +270,11 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                         child: Text.rich(
                           TextSpan(
-                            text: 'DON\'T HAVE AN ACCOUNT? ',
+                            text: 'Belum Punya Akun? ',
                             style: AppTheme.body2.copyWith(fontSize: 14.sp),
                             children: [
                               TextSpan(
-                                text: 'SIGN UP',
+                                text: 'Daftar',
                                 style: AppTheme.subtitle2.copyWith(
                                   color: AppTheme.primaryColorDark,
                                   fontWeight: FontWeight.bold,

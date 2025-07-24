@@ -1,4 +1,5 @@
 import 'package:gh6_ucap/ui/pages/login_page.dart';
+import 'package:gh6_ucap/ui/pages/main_page.dart';
 import 'package:gh6_ucap/ui/pages/onboarding_page.dart';
 import 'package:gh6_ucap/ui/pages/register_page.dart';
 import 'package:gh6_ucap/ui/pages/splash_page.dart';
@@ -10,8 +11,8 @@ final routes = GoRouter(
   routes: [
     GoRoute(
       path: '/',
-      name: RouteName.splash,
-      builder: (context, state) => SplashPage(),
+      name: RouteName.main,
+      builder: (context, state) => MainPage(),
     ),
     GoRoute(
       path: '/register',
