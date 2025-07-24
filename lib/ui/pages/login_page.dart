@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:gh6_ucap/routes/routes.dart';
 import 'package:gh6_ucap/themes/theme.dart';
 
 class LoginPage extends StatelessWidget {
@@ -124,7 +125,9 @@ class LoginPage extends StatelessWidget {
                 icon: Image.asset('assets/google_logo.png', height: 22.h),
                 label: Text(
                   'CONTINUE WITH GOOGLE',
-                  style: AppTheme.button.copyWith(fontWeight: FontWeight.w300),
+                  style: AppTheme.subtitle1.copyWith(
+                    fontWeight: FontWeight.w300,
+                  ),
                 ),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppTheme.textPrimaryColor,
@@ -141,23 +144,30 @@ class LoginPage extends StatelessWidget {
               // Teks untuk sign up
               Align(
                 alignment: Alignment.bottomCenter,
-                child: Text.rich(
-                  TextSpan(
-                    text: 'ALREADY HAVE AN ACCOUNT? ',
-                    style: AppTheme.body2.copyWith(fontSize: 14.sp),
-                    children: [
-                      TextSpan(
-                        text: 'SIGN UP',
-                        style: AppTheme.subtitle2.copyWith(
-                          color: AppTheme.primaryColorDark,
-                          fontWeight: FontWeight.bold,
+                child: TextButton(
+                  onPressed: () {
+                    routes.pushNamed(RouteName.register);
+                  },
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    overlayColor: Colors.transparent,
+                  ),
+                  child: Text.rich(
+                    TextSpan(
+                      text: 'DON\'T HAVE AN ACCOUNT? ',
+                      style: AppTheme.body2.copyWith(fontSize: 14.sp),
+                      children: [
+                        TextSpan(
+                          text: 'SIGN UP',
+                          style: AppTheme.subtitle2.copyWith(
+                            color: AppTheme.primaryColorDark,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                        recognizer: TapGestureRecognizer()
-                          ..onTap = () {
-                            // TODO: Navigasi ke halaman sign up
-                          },
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
