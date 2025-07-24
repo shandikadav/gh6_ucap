@@ -1,9 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    clientId:
+        '1065339553754-sejn30l56gnbtrn90l3g595lanij1vmg.apps.googleusercontent.com',
+  );
 
   // Sign up with email and password
   Future<void> signUp({
@@ -33,6 +38,58 @@ class AuthService {
     } catch (e) {
       throw 'Error creating user: $e';
     }
+  }
+
+  Future<User?> signInWithGoogle() async {
+    try {
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) {
+        throw 'Google sign-in aborted';
+      }
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      UserCredential userCredential = await _auth.signInWithCredential(
+        credential,
+      );
+      User? user = userCredential.user;
+
+      if (user == null) {
+        throw 'User is null after Google sign-in';
+      }
+
+      DocumentSnapshot userDoc = await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      if (!userDoc.exists) {
+        await _firestore.collection('users').doc(user.uid).set({
+          'uid': user.uid,
+          'email': user.email,
+          'fullname': user.displayName ?? '',
+          'exp': 0,
+          'createdAt': DateTime.now().toString(),
+          'lastLogin': DateTime.now().toString(),
+        });
+      } else {
+        await _firestore.collection('users').doc(user.uid).update({
+          'lastLogin': DateTime.now().toString(),
+        });
+      }
+
+      print("GOOGLE BERHASIL BOSS");
+      return user;
+    } on FirebaseAuthException catch (e) {
+      throw _handleAuthException(e);
+    } catch (e) {
+      print('Error signing in with Google: $e');
+    }
+    return null;
   }
 
   // Sign in with email and password
