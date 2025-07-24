@@ -22,8 +22,9 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MultiBlocProvider(
-      providers: [BlocProvider(create: (context) => LoginBloc()),
-      BlocProvider(create: (context) => AuthBloc()),
+      providers: [
+        BlocProvider(create: (context) => LoginBloc()),
+        BlocProvider(create: (context) => AuthBloc()),
       ],
       child: ScreenUtilInit(
         designSize: const Size(412, 917),

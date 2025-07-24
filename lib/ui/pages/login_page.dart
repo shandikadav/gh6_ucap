@@ -230,7 +230,9 @@ class _LoginPageState extends State<LoginPage> {
                       onPressed: state is AuthLoading
                           ? null
                           : () {
-                              // TODO: Handle logic sign in dengan Google
+                              context.read<AuthBloc>().add(
+                                AuthGoogleSignInRequested(),
+                              );
                             },
                       icon: Image.asset('assets/google_logo.png', height: 22.h),
                       label: Text(
