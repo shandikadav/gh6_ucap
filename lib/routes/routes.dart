@@ -1,3 +1,4 @@
+import 'package:gh6_ucap/ui/pages/advanture_simulation_page.dart';
 import 'package:gh6_ucap/ui/pages/login_page.dart';
 import 'package:gh6_ucap/ui/pages/main_page.dart';
 import 'package:gh6_ucap/ui/pages/onboarding_page.dart';
@@ -33,6 +34,11 @@ final routes = GoRouter(
       path: '/main',
       name: RouteName.main,
       builder: (context, state) => MainPage(),
+    ),
+    GoRoute(
+      path: '/adventure',
+      name: RouteName.adventure,
+      builder: (context, state) => SalaryNegotiationPage(),
     ),
   ],
 );

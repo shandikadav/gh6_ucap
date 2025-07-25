@@ -8,4 +8,5 @@ abstract class RouteName {
   static const register = 'register';
   static const main = 'main';
   static const detail_community = 'detail_community';
+  static const adventure = 'adventure';
 }
