@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gh6_ucap/routes/routes.dart';
 import 'package:gh6_ucap/themes/theme.dart';
 
@@ -20,6 +21,9 @@ class _SplashPageState extends State<SplashPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(backgroundColor: AppTheme.primaryColor);
+    return Scaffold(
+      backgroundColor: AppTheme.backgroundColor,
+      body: Center(child: Image.asset('assets/ucap_logo.png', width: 250.w)),
+    );
   }
 }
