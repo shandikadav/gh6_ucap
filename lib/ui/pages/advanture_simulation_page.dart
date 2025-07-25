@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gh6_ucap/services/gemini_service.dart';
+import 'package:gh6_ucap/services/profile_service.dart';
+import 'package:gh6_ucap/services/user_preferences.dart';
 
 // DATA MODEL UNTUK MEMUDAHKAN
 class ScenarioStep {
@@ -59,6 +61,7 @@ class _ScenarioScreenState extends State<ScenarioScreen>
   late AnimationController _heartController;
   late AnimationController _reasonDialogController;
   late AnimationController _retryController;
+  final ProfileService _profileService = ProfileService();
 
   // State Management
   int currentStepIndex = 0;
@@ -1322,68 +1325,231 @@ class _ScenarioScreenState extends State<ScenarioScreen>
     );
   }
 
-  void _showCompletionDialog() {
+  void _showCompletionDialog() async {
     final xpEarned = lives == 3
         ? 100
         : lives == 2
         ? 75
         : 50;
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20.r),
-        ),
-        title: Text('🎉 Selamat!', style: TextStyle(fontSize: 20.sp)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Kamu berhasil menyelesaikan skenario "${widget.scenarioTitle}"!',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16.sp),
-            ),
-            SizedBox(height: 16.h),
-            Text(
-              'Nyawa tersisa: $lives ❤️',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16.sp),
-            ),
-            SizedBox(height: 8.h),
-            Text(
-              '+$xpEarned XP earned!',
-              style: TextStyle(
-                color: Colors.green,
-                fontWeight: FontWeight.bold,
-                fontSize: 16.sp,
+
+    try {
+      print('🔄 Starting scenario completion: ${widget.scenarioTitle}');
+
+      // 🔥 GUNAKAN ProfileService.addExperience (sama seperti artikel)
+      await _profileService.addExperience(xpEarned);
+      print('✅ Scenario EXP saved via ProfileService: +$xpEarned');
+
+      // 🔥 UPDATE scenario completion list
+      final userData = await UserPreferences.getUserData();
+      if (userData != null) {
+        final completedScenarios = List<String>.from(
+          userData['completedScenarios'] ?? [],
+        );
+
+        if (!completedScenarios.contains(widget.scenarioTitle)) {
+          completedScenarios.add(widget.scenarioTitle);
+
+          final totalScenarios = userData['totalScenariosCompleted'] ?? 0;
+
+          final updatedData = Map<String, dynamic>.from(userData);
+          updatedData.addAll({
+            'completedScenarios': completedScenarios,
+            'totalScenariosCompleted': totalScenarios + 1,
+            'lastActivity': DateTime.now().toString(),
+            'lastScenarioCompleted': widget.scenarioTitle,
+            'lastScenarioCompletionDate': DateTime.now().toString(),
+          });
+
+          await UserPreferences.saveUserData(updatedData);
+          print('✅ Scenario completion saved to UserPreferences');
+        }
+      }
+
+      print('🎉 Scenario completion process finished successfully!');
+    } catch (e) {
+      print('❌ Error saving scenario completion: $e');
+      // Continue showing dialog even if save fails
+    }
+
+    // Show dialog setelah save
+    if (mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20.r),
+          ),
+          title: Column(
+            children: [
+              Container(
+                padding: EdgeInsets.all(16.w),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.amber.withOpacity(0.8), Colors.amber],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.celebration, color: Colors.white, size: 32.w),
               ),
-            ),
-            SizedBox(height: 8.h),
-            Text(
-              lives == 3
-                  ? 'Perfect! 🏆'
-                  : lives == 2
-                  ? 'Great job! 🥈'
-                  : 'Well done! 🥉',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 14.sp,
-                color: Colors.orange,
+              SizedBox(height: 12.h),
+              Text(
+                '🎉 Selamat!',
+                style: TextStyle(
+                  fontSize: 24.sp,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.amber[700],
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Kamu berhasil menyelesaikan scenario:',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14.sp, color: Colors.grey[600]),
+              ),
+              SizedBox(height: 8.h),
+              Container(
+                padding: EdgeInsets.all(12.w),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12.r),
+                  border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                ),
+                child: Text(
+                  '"${widget.scenarioTitle}"',
+                  style: TextStyle(
+                    fontSize: 16.sp,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue[700],
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              SizedBox(height: 16.h),
+
+              // Performance Stats
+              Container(
+                padding: EdgeInsets.all(16.w),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.green.withOpacity(0.1),
+                      Colors.green.withOpacity(0.05),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(12.r),
+                  border: Border.all(color: Colors.green.withOpacity(0.3)),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.favorite, color: Colors.red, size: 20.w),
+                        SizedBox(width: 8.w),
+                        Text(
+                          'Nyawa tersisa: $lives/3',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16.sp,
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 12.h),
+                    Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 20.w,
+                        vertical: 12.h,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Colors.amber.withOpacity(0.8), Colors.amber],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(16.r),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.amber.withOpacity(0.3),
+                            spreadRadius: 1,
+                            blurRadius: 4,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.stars, color: Colors.white, size: 24.w),
+                          SizedBox(width: 8.w),
+                          Text(
+                            '+$xpEarned EXP',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18.sp,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: 12.h),
+                    Text(
+                      lives == 3
+                          ? 'Perfect! Semua keputusan tepat! 🏆'
+                          : lives == 2
+                          ? 'Great job! Hampir sempurna! 🥈'
+                          : 'Well done! Terus belajar! 🥉',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14.sp,
+                        color: Colors.green[600],
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop(); // Close dialog
+                  Navigator.of(context).pop(); // Back to menu
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.amber,
+                  foregroundColor: Colors.white,
+                  padding: EdgeInsets.symmetric(vertical: 16.h),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12.r),
+                  ),
+                ),
+                child: Text(
+                  'Kembali ke Menu',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16.sp,
+                  ),
+                ),
               ),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).pop();
-            },
-            child: const Text('Selesai'),
-          ),
-        ],
-      ),
-    );
+      );
+    }
   }
 
   @override

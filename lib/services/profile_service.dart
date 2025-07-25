@@ -35,76 +35,43 @@ class ProfileService {
   Future<void> completeQuest(int questIndex, int expGained) async {
     try {
       final user = _auth.currentUser;
-      if (user == null) return;
+      if (user == null) throw Exception('User not authenticated');
 
-      final userRef = _firestore.collection('users').doc(user.uid);
+      print('🔄 Completing quest $questIndex for user ${user.uid}');
 
-      await _firestore.runTransaction((transaction) async {
-        final snapshot = await transaction.get(userRef);
-        if (!snapshot.exists) return;
+      // Get current user data
+      final userData = await getUserProfile();
+      if (userData == null) throw Exception('User profile not found');
 
-        final userData = snapshot.data()!;
-        final dailyQuests =
-            userData['dailyQuests'] as Map<String, dynamic>? ?? {};
+      final dailyQuests = userData['dailyQuests'] as Map<String, dynamic>? ?? {};
+      final questKey = 'quest${questIndex}Completed';
+      
+      if (dailyQuests[questKey] == true) {
+        print('⚠️ Quest $questIndex already completed');
+        return;
+      }
 
-        // Update quest completion
-        String questKey = 'quest${questIndex}Completed';
-        if (dailyQuests[questKey] == true) return; // Already completed
+      // Mark quest as completed
+      dailyQuests[questKey] = true;
 
-        Map<String, dynamic> updateData = {'dailyQuests.$questKey': true};
+      // 🔥 GUNAKAN addExperience method yang sama
+      await addExperience(expGained);
 
-        // Add EXP and level calculation
-        int currentExp = userData['currentLevelExp'] ?? 0;
-        int newExp = currentExp + expGained;
-        int level = userData['level'] ?? 1;
-        int nextLevelExp = userData['nextLevelExp'] ?? 250;
-
-        if (newExp >= nextLevelExp) {
-          level++;
-          newExp = newExp - nextLevelExp;
-          nextLevelExp = _calculateNextLevelExp(level);
-        }
-
-        updateData.addAll({
-          'currentLevelExp': newExp,
-          'level': level,
-          'nextLevelExp': nextLevelExp,
+      // Update quest completion
+      final updatedData = await getUserProfile(); // Get fresh data
+      if (updatedData != null) {
+        updatedData['dailyQuests'] = dailyQuests;
+        await UserPreferences.saveUserData(updatedData);
+        
+        await _firestore.collection('users').doc(user.uid).update({
+          'dailyQuests': dailyQuests,
         });
+      }
 
-        // Update specific quest stats
-        switch (questIndex) {
-          case 1: // Read article
-            updateData['totalArticles'] = (userData['totalArticles'] ?? 0) + 1;
-            break;
-          case 2: // Forum participation
-            updateData['forumPosts'] = (userData['forumPosts'] ?? 0) + 1;
-            break;
-          case 3: // Complete scenario
-            updateData['totalScenarios'] =
-                (userData['totalScenarios'] ?? 0) + 1;
-            break;
-        }
-
-        transaction.update(userRef, updateData);
-
-        // ✅ Update SharedPreferences
-        final updatedUserData = Map<String, dynamic>.from(userData);
-        updateData.forEach((key, value) {
-          if (key.contains('.')) {
-            // Handle nested keys like 'dailyQuests.quest1Completed'
-            final keys = key.split('.');
-            if (keys.length == 2) {
-              updatedUserData[keys[0]][keys[1]] = value;
-            }
-          } else {
-            updatedUserData[key] = value;
-          }
-        });
-
-        await UserPreferences.saveUserData(updatedUserData);
-      });
+      print('✅ Quest $questIndex completed successfully!');
     } catch (e) {
-      print('Error completing quest: $e');
+      print('❌ Error completing quest: $e');
+      rethrow;
     }
   }
 
@@ -172,4 +139,58 @@ class ProfileService {
       print('Error updating profile: $e');
     }
   }
+
+  Future<void> addExperience(int expAmount) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) throw Exception('User not authenticated');
+
+      print('🔄 Adding $expAmount EXP to user ${user.uid}');
+
+      // Get current user data
+      final userData = await getUserProfile();
+      if (userData == null) throw Exception('User profile not found');
+
+      final currentExp = userData['currentLevelExp'] ?? 0;
+      final newExp = currentExp + expAmount;
+      
+      // Calculate new level
+      final newLevel = _calculateLevel(newExp);
+      final nextLevelExp = _calculateNextLevelExp(newLevel);
+
+      // Update local data first
+      final updatedData = Map<String, dynamic>.from(userData);
+      updatedData.addAll({
+        'currentLevelExp': newExp,
+        'totalExp': newExp,
+        'level': newLevel,
+        'nextLevelExp': nextLevelExp,
+        'lastActivity': DateTime.now().toString(),
+      });
+
+      // Save to SharedPreferences
+      await UserPreferences.saveUserData(updatedData);
+
+      // Save to Firestore
+      await _firestore.collection('users').doc(user.uid).update({
+        'currentLevelExp': newExp,
+        'totalExp': newExp,
+        'level': newLevel,
+        'nextLevelExp': nextLevelExp,
+        'lastActivity': FieldValue.serverTimestamp(),
+      });
+
+      print('✅ EXP added successfully: $currentExp → $newExp (+$expAmount)');
+      print('📊 Level: ${userData['level']} → $newLevel');
+    } catch (e) {
+      print('❌ Error adding experience: $e');
+      rethrow;
+    }
+  }
+
+    // Helper method to calculate level from EXP
+  int _calculateLevel(int exp) {
+    return (exp / 100).floor() + 1;
+  }
+
 }

@@ -1,25 +1,19 @@
-// lib/pages/category_detail_page.dart
-
-import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'dart:math';
-
+import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
+import 'package:gh6_ucap/models/articles_model.dart';
 import 'package:gh6_ucap/themes/theme.dart';
+import 'package:gh6_ucap/services/article_service.dart';
 import 'material_detail_page.dart';
 
 class CategoryDetailPage extends StatefulWidget {
-  final String categoryId;
-  final String categoryTitle;
-  final Color categoryColor;
-  final VoidCallback onModuleCompleted;
+  final ArticleCategory category;
+  final VoidCallback onArticleCompleted;
 
   const CategoryDetailPage({
     super.key,
-    required this.categoryId,
-    required this.categoryTitle,
-    required this.categoryColor,
-    required this.onModuleCompleted,
+    required this.category,
+    required this.onArticleCompleted,
   });
 
   @override
@@ -27,310 +21,306 @@ class CategoryDetailPage extends StatefulWidget {
 }
 
 class _CategoryDetailPageState extends State<CategoryDetailPage> {
-  late List<Map<String, dynamic>> _materials;
-  late ConfettiController _confettiController;
-  int _totalExpGained = 0;
+  final ArticleService _articleService = ArticleService();
+  List<Map<String, dynamic>> articles = [];
+  bool isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _confettiController = ConfettiController(
-      duration: const Duration(seconds: 2),
-    );
-    _materials = _getMaterialsForCategory(widget.categoryId);
-    _totalExpGained = _materials.fold(
-      0,
-      (sum, item) => sum + (item['exp'] as int),
-    );
+    _loadArticles();
   }
 
-  // Data dummy terpusat
-  List<Map<String, dynamic>> _getMaterialsForCategory(String categoryId) {
-    final allMaterials = {
-      'keuangan': [
-        {
-          'id': 'k1',
-          'title': 'Cara Membuat Anggaran Bulanan',
-          'type': 'artikel',
-          'exp': 20,
-          'isCompleted': false,
-        },
-        {
-          'id': 'k2',
-          'title': 'Video: Investasi untuk Pemula',
-          'type': 'video',
-          'exp': 35,
-          'isCompleted': false,
-        },
-        {
-          'id': 'k3',
-          'title': 'Memahami Dana Darurat',
-          'type': 'artikel',
-          'exp': 25,
-          'isCompleted': false,
-        },
-      ],
-      'karier': [
-        {
-          'id': 'c1',
-          'title': 'Tips Membuat CV ATS-Friendly',
-          'type': 'artikel',
-          'exp': 20,
-          'isCompleted': false,
-        },
-        {
-          'id': 'c2',
-          'title': 'Menjawab Pertanyaan Interview Sulit',
-          'type': 'video',
-          'exp': 40,
-          'isCompleted': false,
-        },
-      ],
-      'mental': [
-        {
-          'id': 'm1',
-          'title': 'Mengatasi Burnout di Tempat Kerja',
-          'type': 'artikel',
-          'exp': 30,
-          'isCompleted': false,
-        },
-      ],
-    };
-    return allMaterials[categoryId] ?? [];
-  }
-
-  void _markMaterialAsCompleted(String materialId) {
-    setState(() {
-      final index = _materials.indexWhere((m) => m['id'] == materialId);
-      if (index != -1) {
-        _materials[index]['isCompleted'] = true;
+  Future<void> _loadArticles() async {
+    try {
+      final articlesData = await _articleService.getArticlesByCategory(
+        widget.category.id,
+      );
+      if (mounted) {
+        setState(() {
+          articles = articlesData;
+          isLoading = false;
+        });
       }
-    });
-
-    // Cek apakah semua materi sudah selesai
-    final allCompleted = _materials.every((m) => m['isCompleted'] == true);
-    if (allCompleted) {
-      _confettiController.play();
-      _showModuleCompletedDialog(context);
-      widget
-          .onModuleCompleted(); // Panggil callback untuk buka modul selanjutnya
+    } catch (e) {
+      print('Error loading articles: $e');
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
     }
   }
 
   @override
-  void dispose() {
-    _confettiController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final color = Color(
+      int.parse(widget.category.colorHex.replaceFirst('#', '0xFF')),
+    );
+
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
       appBar: AppBar(
-        title: Text(widget.categoryTitle, style: AppTheme.h3),
+        title: Text(widget.category.name, style: AppTheme.h3),
         backgroundColor: AppTheme.backgroundColor,
         elevation: 0,
         foregroundColor: AppTheme.textPrimaryColor,
       ),
-      body: Stack(
-        alignment: Alignment.topCenter,
+      body: Column(
         children: [
-          ListView.builder(
-            padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 10.h),
-            itemCount: _materials.length,
-            itemBuilder: (context, index) {
-              final material = _materials[index];
-              // Materi terkunci jika materi sebelumnya belum selesai
-              final bool isLocked =
-                  index > 0 && !_materials[index - 1]['isCompleted'];
-
-              return _MaterialCard(
-                title: material['title'] as String,
-                type: material['type'] as String,
-                exp: material['exp'] as int,
-                isCompleted: material['isCompleted'] as bool,
-                isLocked: isLocked,
-                color: widget.categoryColor,
-                onTap: () {
-                  if (!isLocked) {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => MaterialDetailPage(
-                          materialTitle: material['title'] as String,
-                          expGained: material['exp'] as int,
-                          // Kirim callback untuk menandai selesai
-                          onComplete: () => _markMaterialAsCompleted(
-                            material['id'] as String,
-                          ),
+          // Header
+          Container(
+            padding: EdgeInsets.all(20.w),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [color.withOpacity(0.1), color.withOpacity(0.05)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: EdgeInsets.all(16.w),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [color.withOpacity(0.7), color],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(16.r),
+                  ),
+                  child: Icon(
+                    _getIconFromName(widget.category.iconName),
+                    color: Colors.white,
+                    size: 32.w,
+                  ),
+                ),
+                SizedBox(width: 16.w),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.category.name,
+                        style: AppTheme.h2.copyWith(fontSize: 24.sp),
+                      ),
+                      SizedBox(height: 4.h),
+                      Text(
+                        widget.category.description,
+                        style: AppTheme.body2.copyWith(
+                          color: Colors.grey.shade600,
                         ),
                       ),
-                    );
-                  }
-                },
-              );
-            },
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
-          ConfettiWidget(
-            confettiController: _confettiController,
-            blastDirectionality: BlastDirectionality.explosive,
-            particleDrag: 0.05,
-            emissionFrequency: 0.05,
-            numberOfParticles: 20,
-            gravity: 0.1,
+
+          // Articles List
+          Expanded(
+            child: isLoading
+                ? Center(child: CircularProgressIndicator(color: color))
+                : articles.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.article_outlined,
+                          size: 64.w,
+                          color: Colors.grey,
+                        ),
+                        SizedBox(height: 16.h),
+                        Text('Belum ada artikel dalam kategori ini'),
+                      ],
+                    ),
+                  )
+                : AnimationLimiter(
+                    child: ListView.builder(
+                      padding: EdgeInsets.all(20.w),
+                      itemCount: articles.length,
+                      itemBuilder: (context, index) {
+                        return AnimationConfiguration.staggeredList(
+                          position: index,
+                          duration: const Duration(milliseconds: 375),
+                          child: SlideAnimation(
+                            verticalOffset: 50.0,
+                            child: FadeInAnimation(
+                              child: _DynamicArticleCard(
+                                articleData: articles[index],
+                                categoryColor: color,
+                                onTap: () async {
+                                  final result = await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => MaterialDetailPage(
+                                        articleId:
+                                            articles[index]['article'].id,
+                                        materialTitle:
+                                            articles[index]['article'].title,
+                                        materialContent:
+                                            articles[index]['article'].content,
+                                        materialType:
+                                            articles[index]['article'].type,
+                                        expGained: articles[index]['article']
+                                            .expReward,
+                                        onComplete: () async {
+                                          await _articleService.completeArticle(
+                                            articles[index]['article'].id,
+                                          );
+                                          _loadArticles();
+                                          widget.onArticleCompleted();
+                                        },
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
           ),
         ],
       ),
     );
   }
 
-  void _showModuleCompletedDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24.r),
-        ),
-        title: Column(
-          children: [
-            Icon(
-              Icons.stars_rounded,
-              color: AppTheme.primaryColor,
-              size: 48.sp,
-            ),
-            SizedBox(height: 16.h),
-            Text(
-              'Modul Selesai!',
-              textAlign: TextAlign.center,
-              style: AppTheme.h3,
-            ),
-          ],
-        ),
-        content: Text(
-          'Kerja bagus! Kamu telah menyelesaikan modul "${widget.categoryTitle}" dan mendapatkan total $_totalExpGained EXP. Modul berikutnya sekarang terbuka.',
-          textAlign: TextAlign.center,
-          style: AppTheme.body2,
-        ),
-        actions: [
-          Center(
-            child: TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: Text(
-                'Lanjutkan Petualangan',
-                style: AppTheme.button.copyWith(
-                  color: AppTheme.primaryColorDark,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+  IconData _getIconFromName(String iconName) {
+    final iconMap = {
+      'work': Icons.work_rounded,
+      'account_balance_wallet': Icons.account_balance_wallet_rounded,
+      'groups': Icons.groups_rounded,
+      'lightbulb': Icons.lightbulb_rounded,
+    };
+    return iconMap[iconName] ?? Icons.article_rounded;
   }
 }
 
-class _MaterialCard extends StatelessWidget {
-  final String title, type;
-  final int exp;
-  final bool isCompleted, isLocked;
-  final Color color;
+class _DynamicArticleCard extends StatelessWidget {
+  final Map<String, dynamic> articleData;
+  final Color categoryColor;
   final VoidCallback onTap;
 
-  const _MaterialCard({
-    required this.title,
-    required this.type,
-    required this.exp,
-    required this.isCompleted,
-    required this.isLocked,
-    required this.color,
+  const _DynamicArticleCard({
+    required this.articleData,
+    required this.categoryColor,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final Article article = articleData['article'];
+    final bool isCompleted = articleData['isCompleted'];
+
     return Opacity(
-      opacity: isLocked ? 0.5 : 1.0,
-      child: GestureDetector(
-        onTap: isLocked ? null : onTap,
-        child: Container(
-          margin: EdgeInsets.only(bottom: 16.h),
-          padding: EdgeInsets.all(16.r),
-          decoration: BoxDecoration(
+      opacity: isCompleted ? 0.7 : 1.0,
+      child: Container(
+        margin: EdgeInsets.only(bottom: 16.h),
+        decoration: BoxDecoration(
+          color: AppTheme.surfaceColor,
+          borderRadius: BorderRadius.circular(16.r),
+          border: Border.all(
             color: isCompleted
-                ? color.withOpacity(0.15)
-                : AppTheme.surfaceColor,
-            borderRadius: BorderRadius.circular(16.r),
-            boxShadow: [
-              if (!isLocked)
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                ),
-            ],
-            border: Border.all(
-              color: isCompleted ? color : Colors.transparent,
-              width: 1.5,
-            ),
+                ? Colors.green.withOpacity(0.5)
+                : Colors.grey.shade200,
           ),
-          child: Row(
-            children: [
-              Container(
-                width: 50.w,
-                height: 50.w,
-                decoration: BoxDecoration(
-                  color: isLocked
-                      ? Colors.grey.shade300
-                      : color.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12.r),
+        ),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16.r),
+          child: Padding(
+            padding: EdgeInsets.all(16.w),
+            child: Row(
+              children: [
+                // Type Icon
+                Container(
+                  padding: EdgeInsets.all(12.w),
+                  decoration: BoxDecoration(
+                    color: article.type == 'video'
+                        ? Colors.red.withOpacity(0.2)
+                        : categoryColor.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12.r),
+                  ),
+                  child: Icon(
+                    article.type == 'video'
+                        ? Icons.play_circle_filled
+                        : Icons.article,
+                    color: article.type == 'video' ? Colors.red : categoryColor,
+                    size: 24.w,
+                  ),
                 ),
-                child: Icon(
-                  isLocked
-                      ? Icons.lock_rounded
-                      : (type == 'artikel'
-                            ? Icons.article_rounded
-                            : Icons.play_circle_filled_rounded),
-                  color: isLocked ? Colors.grey.shade500 : color,
-                  size: 28.w,
-                ),
-              ),
-              SizedBox(width: 16.w),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: AppTheme.subtitle2,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (!isLocked) ...[
-                      SizedBox(height: 8.h),
-                      Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 8.w,
-                          vertical: 4.h,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppTheme.primaryColor.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(8.r),
-                        ),
-                        child: Text(
-                          '+$exp XP',
-                          style: AppTheme.caption.copyWith(
-                            color: AppTheme.primaryColorDark,
-                            fontWeight: FontWeight.bold,
+                SizedBox(width: 16.w),
+
+                // Content
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              article.title,
+                              style: AppTheme.subtitle1.copyWith(
+                                decoration: isCompleted
+                                    ? TextDecoration.lineThrough
+                                    : null,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 2,
+                            ),
                           ),
-                        ),
+                          if (isCompleted)
+                            Icon(
+                              Icons.check_circle,
+                              color: Colors.green,
+                              size: 20.w,
+                            ),
+                        ],
+                      ),
+                      SizedBox(height: 4.h),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.access_time,
+                            size: 14.w,
+                            color: Colors.grey,
+                          ),
+                          SizedBox(width: 4.w),
+                          Text(
+                            '${article.readTime} menit',
+                            style: AppTheme.caption,
+                          ),
+                          SizedBox(width: 12.w),
+                          Icon(Icons.stars, size: 14.w, color: Colors.amber),
+                          SizedBox(width: 4.w),
+                          Text(
+                            '+${article.expReward} EXP',
+                            style: AppTheme.caption.copyWith(
+                              color: Colors.amber[700],
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
-                  ],
+                  ),
                 ),
-              ),
-              if (isCompleted)
-                Icon(Icons.check_circle_rounded, color: color, size: 24.w),
-            ],
+
+                // Arrow
+                Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  color: Colors.grey.shade400,
+                  size: 16.w,
+                ),
+              ],
+            ),
           ),
         ),
       ),
