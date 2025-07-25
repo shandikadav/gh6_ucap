@@ -67,7 +67,7 @@ class _HeaderState extends State<_Header> {
   String username = '';
 
   @override
-  void initState() async {
+  void initState() {
     super.initState();
     _setGreeting();
     _loadUserData();
