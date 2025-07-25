@@ -4,9 +4,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gh6_ucap/bloc/auth/auth_bloc.dart';
+import 'package:gh6_ucap/bloc/community/community_bloc.dart';
 import 'package:gh6_ucap/bloc/login/login_bloc.dart';
 import 'package:gh6_ucap/firebase_options.dart';
 import 'package:gh6_ucap/routes/routes.dart';
+import 'package:gh6_ucap/services/community_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
