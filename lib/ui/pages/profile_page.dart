@@ -2,17 +2,33 @@ import 'dart:math';
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import '../../bloc/profile/profile_bloc.dart';
+import '../../services/profile_service.dart';
 
-class ProfilePage extends StatefulWidget {
+class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
 
   @override
-  _ProfilePageState createState() => _ProfilePageState();
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (context) =>
+          ProfileBloc(profileService: ProfileService())..add(LoadProfile()),
+      child: const ProfileView(),
+    );
+  }
 }
 
-class _ProfilePageState extends State<ProfilePage>
+class ProfileView extends StatefulWidget {
+  const ProfileView({super.key});
+
+  @override
+  _ProfileViewState createState() => _ProfileViewState();
+}
+
+class _ProfileViewState extends State<ProfileView>
     with TickerProviderStateMixin {
   late ConfettiController _confettiController;
   late AnimationController _progressController;
@@ -22,17 +38,19 @@ class _ProfilePageState extends State<ProfilePage>
   late Animation<double> _pulseAnimation;
   late Animation<Offset> _slideAnimation;
 
+  // Default values (will be updated by BLoC)
   bool quest1Completed = false;
-  bool quest2Completed = true;
+  bool quest2Completed = false;
   bool quest3Completed = false;
-
-  int currentXP = 750;
-  int nextLevelXP = 1000;
-  int currentLevel = 5;
-  int totalScenarios = 23;
-  int totalArticles = 47;
-  int forumPosts = 12;
-  int streakDays = 7;
+  int currentXP = 0;
+  int nextLevelXP = 250;
+  int currentLevel = 1;
+  int totalScenarios = 0;
+  int totalArticles = 0;
+  int forumPosts = 0;
+  int streakDays = 1;
+  String userName = 'User';
+  Map<String, dynamic> achievements = {};
 
   @override
   void initState() {
@@ -61,13 +79,12 @@ class _ProfilePageState extends State<ProfilePage>
       vsync: this,
     );
 
-    _progressAnimation = Tween<double>(begin: 0.0, end: currentXP / nextLevelXP)
-        .animate(
-          CurvedAnimation(
-            parent: _progressController,
-            curve: Curves.easeInOutCubic,
-          ),
-        );
+    _progressAnimation = Tween<double>(begin: 0.0, end: 0.0).animate(
+      CurvedAnimation(
+        parent: _progressController,
+        curve: Curves.easeInOutCubic,
+      ),
+    );
 
     _pulseAnimation = Tween<double>(begin: 1.0, end: 1.05).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
@@ -93,44 +110,39 @@ class _ProfilePageState extends State<ProfilePage>
     super.dispose();
   }
 
-  void _completeQuest(int questIndex, int xpGained) {
-    bool questAlreadyCompleted = false;
-    switch (questIndex) {
-      case 1:
-        questAlreadyCompleted = quest1Completed;
-        if (!questAlreadyCompleted) quest1Completed = true;
-        break;
-      case 2:
-        questAlreadyCompleted = quest2Completed;
-        if (!questAlreadyCompleted) quest2Completed = true;
-        break;
-      case 3:
-        questAlreadyCompleted = quest3Completed;
-        if (!questAlreadyCompleted) quest3Completed = true;
-        break;
-    }
+  void _updateDataFromUserData(Map<String, dynamic> userData) {
+    setState(() {
+      userName = userData['fullname'] ?? 'User';
+      currentXP = userData['currentLevelExp'] ?? 0;
+      nextLevelXP = userData['nextLevelExp'] ?? 1000;
+      currentLevel = userData['level'] ?? 1;
+      totalScenarios = userData['totalScenarios'] ?? 0;
+      totalArticles = userData['totalArticles'] ?? 0;
+      forumPosts = userData['forumPosts'] ?? 0;
+      streakDays = userData['streakDays'] ?? 1;
+      achievements = userData['achievements'] ?? {};
 
-    if (!questAlreadyCompleted) {
-      setState(() {
-        currentXP += xpGained;
-        if (currentXP >= nextLevelXP) {
-          currentXP = currentXP - nextLevelXP;
-          nextLevelXP += 200;
-          currentLevel++;
-        }
-      });
-      _updateProgressAnimation();
-      HapticFeedback.heavyImpact();
-      _confettiController.play();
-    }
+      final dailyQuests =
+          userData['dailyQuests'] as Map<String, dynamic>? ?? {};
+      quest1Completed = dailyQuests['quest1Completed'] ?? false;
+      quest2Completed = dailyQuests['quest2Completed'] ?? false;
+      quest3Completed = dailyQuests['quest3Completed'] ?? false;
+    });
+    _updateProgressAnimation();
+  }
+
+  void _completeQuest(int questIndex, int xpGained) {
+    context.read<ProfileBloc>().add(
+      CompleteQuest(questIndex: questIndex, expGained: xpGained),
+    );
   }
 
   void _updateProgressAnimation() {
-    final currentValue = _progressAnimation.value;
+    final targetValue = nextLevelXP > 0 ? currentXP / nextLevelXP : 0.0;
     _progressAnimation =
         Tween<double>(
-          begin: currentValue,
-          end: currentXP / nextLevelXP,
+          begin: _progressAnimation.value,
+          end: targetValue,
         ).animate(
           CurvedAnimation(
             parent: _progressController,
@@ -143,35 +155,86 @@ class _ProfilePageState extends State<ProfilePage>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8F5EE),
-      body: Stack(
-        children: [
-          // Background gradient
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Color(0xFFF8F5EE),
-                  Color(0xFFFFE4B5),
-                  Color(0xFFF8F5EE),
-                ],
-                stops: [0.0, 0.3, 1.0],
+    return BlocListener<ProfileBloc, ProfileState>(
+      listener: (context, state) {
+        if (state is ProfileLoaded) {
+          _updateDataFromUserData(state.userData);
+        } else if (state is ProfileQuestCompleted) {
+          _updateDataFromUserData(state.userData);
+          HapticFeedback.heavyImpact();
+          _confettiController.play();
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Quest completed! +${state.expGained} XP'),
+              backgroundColor: Colors.green,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12.r),
               ),
             ),
-          ),
+          );
+        } else if (state is ProfileError) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: ${state.message}'),
+              backgroundColor: Colors.red,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12.r),
+              ),
+            ),
+          );
+        } else if (state is ProfileSignedOut) {
+          // Navigate to login page or handle sign out
+          Navigator.of(context).pushReplacementNamed('/login');
+        }
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF8F5EE),
+        body: BlocBuilder<ProfileBloc, ProfileState>(
+          builder: (context, state) {
+            if (state is ProfileLoading) {
+              return const Center(
+                child: CircularProgressIndicator(color: Color(0xFFFFD700)),
+              );
+            }
 
-          // Main content
-          CustomScrollView(
-            physics: const BouncingScrollPhysics(),
-            slivers: [_buildFlexibleHeader(), _buildMainContent()],
-          ),
+            return Stack(
+              children: [
+                // Background gradient
+                Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Color(0xFFF8F5EE),
+                        Color(0xFFFFE4B5),
+                        Color(0xFFF8F5EE),
+                      ],
+                      stops: [0.0, 0.3, 1.0],
+                    ),
+                  ),
+                ),
 
-          // Confetti effect
-          _buildConfettiEffect(),
-        ],
+                // Main content
+                RefreshIndicator(
+                  onRefresh: () async {
+                    context.read<ProfileBloc>().add(RefreshProfile());
+                  },
+                  child: CustomScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    slivers: [_buildFlexibleHeader(), _buildMainContent()],
+                  ),
+                ),
+
+                // Confetti effect
+                _buildConfettiEffect(),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -219,13 +282,40 @@ class _ProfilePageState extends State<ProfilePage>
           ),
           onPressed: () => _showNotifications(),
         ),
-        IconButton(
-          icon: Icon(
-            Icons.settings_outlined,
-            color: Colors.black54,
-            size: 24.w,
-          ),
-          onPressed: () => _showSettings(),
+        PopupMenuButton<String>(
+          icon: Icon(Icons.more_vert, color: Colors.black54, size: 24.w),
+          onSelected: (value) {
+            switch (value) {
+              case 'settings':
+                _showSettings();
+                break;
+              case 'logout':
+                _showLogoutDialog();
+                break;
+            }
+          },
+          itemBuilder: (context) => [
+            PopupMenuItem(
+              value: 'settings',
+              child: Row(
+                children: [
+                  Icon(Icons.settings_outlined, size: 20.w),
+                  SizedBox(width: 12.w),
+                  const Text('Settings'),
+                ],
+              ),
+            ),
+            PopupMenuItem(
+              value: 'logout',
+              child: Row(
+                children: [
+                  Icon(Icons.logout_outlined, size: 20.w),
+                  SizedBox(width: 12.w),
+                  const Text('Logout'),
+                ],
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -351,7 +441,7 @@ class _ProfilePageState extends State<ProfilePage>
     return Column(
       children: [
         Text(
-          'Andi Pratama',
+          userName,
           style: TextStyle(
             fontSize: 22.sp,
             fontWeight: FontWeight.bold,
@@ -367,7 +457,7 @@ class _ProfilePageState extends State<ProfilePage>
             border: Border.all(color: Colors.white.withOpacity(0.3), width: 1),
           ),
           child: Text(
-            'Level $currentLevel: Pejuang Mandiri 🏆',
+            'Level $currentLevel: ${_getLevelTitle(currentLevel)} 🏆',
             style: TextStyle(
               fontSize: 14.sp,
               fontWeight: FontWeight.w600,
@@ -377,6 +467,14 @@ class _ProfilePageState extends State<ProfilePage>
         ),
       ],
     );
+  }
+
+  String _getLevelTitle(int level) {
+    if (level >= 10) return 'Master Mandiri';
+    if (level >= 7) return 'Pejuang Tangguh';
+    if (level >= 5) return 'Pejuang Mandiri';
+    if (level >= 3) return 'Pemula Bijak';
+    return 'Pendatang Baru';
   }
 
   Widget _buildXpBar() {
@@ -731,29 +829,33 @@ class _ProfilePageState extends State<ProfilePage>
   }
 
   Widget _buildAchievementSection() {
-    final achievements = [
-      {'title': 'Job Hunter', 'icon': Icons.work_rounded, 'unlocked': true},
+    final achievementsList = [
+      {'key': 'jobHunter', 'title': 'Job Hunter', 'icon': Icons.work_rounded},
       {
+        'key': 'budgetPro',
         'title': 'Budget Pro',
         'icon': Icons.account_balance_wallet_rounded,
-        'unlocked': true,
       },
       {
+        'key': 'socialButterfly',
         'title': 'Social Butterfly',
         'icon': Icons.people_alt_rounded,
-        'unlocked': false,
       },
       {
+        'key': 'stressMaster',
         'title': 'Stress Master',
         'icon': Icons.psychology_alt_rounded,
-        'unlocked': false,
       },
       {
+        'key': 'articleMaster',
         'title': 'Article Master',
         'icon': Icons.library_books,
-        'unlocked': false,
       },
-      {'title': 'Discussion King', 'icon': Icons.forum, 'unlocked': false},
+      {
+        'key': 'discussionKing',
+        'title': 'Discussion King',
+        'icon': Icons.forum,
+      },
     ];
 
     return Column(
@@ -784,10 +886,10 @@ class _ProfilePageState extends State<ProfilePage>
             crossAxisSpacing: 16.w,
             childAspectRatio: 0.9,
           ),
-          itemCount: achievements.length,
+          itemCount: achievementsList.length,
           itemBuilder: (context, index) {
-            final achievement = achievements[index];
-            final isUnlocked = achievement['unlocked'] as bool;
+            final achievement = achievementsList[index];
+            final isUnlocked = achievements[achievement['key']] ?? false;
             return _buildAchievementBadge(
               achievement['title'] as String,
               achievement['icon'] as IconData,
@@ -966,26 +1068,45 @@ class _ProfilePageState extends State<ProfilePage>
     );
   }
 
+  void _showLogoutDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20.r),
+        ),
+        title: Text('Logout', style: TextStyle(fontSize: 18.sp)),
+        content: Text(
+          'Apakah Anda yakin ingin logout?',
+          style: TextStyle(fontSize: 14.sp),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Batal', style: TextStyle(fontSize: 14.sp)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              context.read<ProfileBloc>().add(SignOut());
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: Text('Logout', style: TextStyle(fontSize: 14.sp)),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showLeaderboard() {
     HapticFeedback.lightImpact();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Text('Papan peringkat akan segera hadir!'),
         backgroundColor: const Color(0xFF2196F3),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12.r),
-        ),
-      ),
-    );
-  }
-
-  void _showFriends() {
-    HapticFeedback.lightImpact();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Fitur teman akan segera hadir!'),
-        backgroundColor: const Color(0xFF4CAF50),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12.r),
