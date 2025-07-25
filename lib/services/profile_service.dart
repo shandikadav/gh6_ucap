@@ -1,169 +1,146 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'user_preferences.dart'; // Import UserPreferences
 
 class ProfileService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // Get current user profile data
+  // Get user profile with local fallback
   Future<Map<String, dynamic>?> getUserProfile() async {
     try {
       final user = _auth.currentUser;
       if (user == null) return null;
 
-      final userDoc = await _firestore.collection('users').doc(user.uid).get();
+      // Coba ambil dari Firestore terlebih dahulu
+      final doc = await _firestore.collection('users').doc(user.uid).get();
 
-      if (userDoc.exists) {
-        final userData = userDoc.data() as Map<String, dynamic>;
-
-        // Merge with default values if fields don't exist
-        return {
-          'uid': user.uid,
-          'email': user.email ?? '',
-          'fullname': userData['fullname'] ?? 'User',
-          'exp': userData['exp'] ?? 0,
-          'level': _calculateLevel(userData['exp'] ?? 0),
-          'nextLevelExp': _calculateNextLevelExp(userData['exp'] ?? 0),
-          'currentLevelExp': _calculateCurrentLevelExp(userData['exp'] ?? 0),
-          'createdAt': userData['createdAt'] ?? '',
-          'lastLogin': userData['lastLogin'] ?? '',
-          'profileImageUrl': userData['profileImageUrl'] ?? '',
-
-          // Stats (with defaults)
-          'totalScenarios': userData['totalScenarios'] ?? 0,
-          'totalArticles': userData['totalArticles'] ?? 0,
-          'forumPosts': userData['forumPosts'] ?? 0,
-          'streakDays': userData['streakDays'] ?? 1,
-
-          // Daily quests
-          'dailyQuests': userData['dailyQuests'] ?? _getDefaultDailyQuests(),
-          'lastQuestReset':
-              userData['lastQuestReset'] ?? DateTime.now().toString(),
-
-          // Achievements
-          'achievements': userData['achievements'] ?? _getDefaultAchievements(),
-        };
+      if (doc.exists) {
+        final userData = doc.data()!;
+        // ✅ Update SharedPreferences dengan data terbaru
+        await UserPreferences.saveUserData(userData);
+        return userData;
       } else {
-        // Create default user data if doesn't exist
-        final defaultData = {
-          'uid': user.uid,
-          'email': user.email ?? '',
-          'fullname': user.displayName ?? 'User',
-          'exp': 0,
-          'createdAt': DateTime.now().toString(),
-          'lastLogin': DateTime.now().toString(),
-          'profileImageUrl': '',
-          'totalScenarios': 0,
-          'totalArticles': 0,
-          'forumPosts': 0,
-          'streakDays': 1,
-          'dailyQuests': _getDefaultDailyQuests(),
-          'lastQuestReset': DateTime.now().toString(),
-          'achievements': _getDefaultAchievements(),
-        };
-
-        await _firestore.collection('users').doc(user.uid).set(defaultData);
-
-        return {
-          ...defaultData,
-          'level': 1,
-          'nextLevelExp': 1000,
-          'currentLevelExp': 0,
-        };
+        // Fallback ke SharedPreferences
+        return await UserPreferences.getUserData();
       }
     } catch (e) {
       print('Error getting user profile: $e');
-      return _getSampleUserData();
+      // Fallback ke SharedPreferences jika ada error
+      return await UserPreferences.getUserData();
     }
   }
 
-  // Update user experience points
-  Future<void> updateUserExp(int expGained) async {
-    try {
-      final user = _auth.currentUser;
-      if (user == null) return;
-
-      await _firestore.runTransaction((transaction) async {
-        final userRef = _firestore.collection('users').doc(user.uid);
-        final userDoc = await transaction.get(userRef);
-
-        if (userDoc.exists) {
-          final currentExp = userDoc.data()?['exp'] ?? 0;
-          final newExp = currentExp + expGained;
-
-          transaction.update(userRef, {
-            'exp': newExp,
-            'lastLogin': DateTime.now().toString(),
-          });
-        }
-      });
-    } catch (e) {
-      print('Error updating user exp: $e');
-    }
-  }
-
-  // Complete daily quest
+  // Complete quest with local update
   Future<void> completeQuest(int questIndex, int expGained) async {
     try {
       final user = _auth.currentUser;
       if (user == null) return;
 
+      final userRef = _firestore.collection('users').doc(user.uid);
+
       await _firestore.runTransaction((transaction) async {
-        final userRef = _firestore.collection('users').doc(user.uid);
-        final userDoc = await transaction.get(userRef);
+        final snapshot = await transaction.get(userRef);
+        if (!snapshot.exists) return;
 
-        if (userDoc.exists) {
-          final userData = userDoc.data() as Map<String, dynamic>;
-          final currentExp = userData['exp'] ?? 0;
-          final dailyQuests = Map<String, dynamic>.from(
-            userData['dailyQuests'] ?? _getDefaultDailyQuests(),
-          );
+        final userData = snapshot.data()!;
+        final dailyQuests =
+            userData['dailyQuests'] as Map<String, dynamic>? ?? {};
 
-          // Check if quest should be reset (new day)
-          final lastReset =
-              DateTime.tryParse(userData['lastQuestReset'] ?? '') ??
-              DateTime.now();
-          final now = DateTime.now();
-          final shouldReset = now.difference(lastReset).inDays >= 1;
+        // Update quest completion
+        String questKey = 'quest${questIndex}Completed';
+        if (dailyQuests[questKey] == true) return; // Already completed
 
-          // if (shouldReset) {
-          //   dailyQuests = _getDefaultDailyQuests();
-          // }
+        Map<String, dynamic> updateData = {'dailyQuests.$questKey': true};
 
-          // Mark quest as completed
-          dailyQuests['quest${questIndex}Completed'] = true;
+        // Add EXP and level calculation
+        int currentExp = userData['currentLevelExp'] ?? 0;
+        int newExp = currentExp + expGained;
+        int level = userData['level'] ?? 1;
+        int nextLevelExp = userData['nextLevelExp'] ?? 250;
 
-          // Update stats based on quest type
-          Map<String, dynamic> updateData = {
-            'exp': currentExp + expGained,
-            'dailyQuests': dailyQuests,
-            'lastQuestReset': shouldReset
-                ? now.toString()
-                : userData['lastQuestReset'],
-            'lastLogin': now.toString(),
-          };
-
-          // Update specific stats based on quest
-          switch (questIndex) {
-            case 1: // Read article
-              updateData['totalArticles'] =
-                  (userData['totalArticles'] ?? 0) + 1;
-              break;
-            case 2: // Forum participation
-              updateData['forumPosts'] = (userData['forumPosts'] ?? 0) + 1;
-              break;
-            case 3: // Complete scenario
-              updateData['totalScenarios'] =
-                  (userData['totalScenarios'] ?? 0) + 1;
-              break;
-          }
-
-          transaction.update(userRef, updateData);
+        if (newExp >= nextLevelExp) {
+          level++;
+          newExp = newExp - nextLevelExp;
+          nextLevelExp = _calculateNextLevelExp(level);
         }
+
+        updateData.addAll({
+          'currentLevelExp': newExp,
+          'level': level,
+          'nextLevelExp': nextLevelExp,
+        });
+
+        // Update specific quest stats
+        switch (questIndex) {
+          case 1: // Read article
+            updateData['totalArticles'] = (userData['totalArticles'] ?? 0) + 1;
+            break;
+          case 2: // Forum participation
+            updateData['forumPosts'] = (userData['forumPosts'] ?? 0) + 1;
+            break;
+          case 3: // Complete scenario
+            updateData['totalScenarios'] =
+                (userData['totalScenarios'] ?? 0) + 1;
+            break;
+        }
+
+        transaction.update(userRef, updateData);
+
+        // ✅ Update SharedPreferences
+        final updatedUserData = Map<String, dynamic>.from(userData);
+        updateData.forEach((key, value) {
+          if (key.contains('.')) {
+            // Handle nested keys like 'dailyQuests.quest1Completed'
+            final keys = key.split('.');
+            if (keys.length == 2) {
+              updatedUserData[keys[0]][keys[1]] = value;
+            }
+          } else {
+            updatedUserData[key] = value;
+          }
+        });
+
+        await UserPreferences.saveUserData(updatedUserData);
       });
     } catch (e) {
       print('Error completing quest: $e');
     }
+  }
+
+  // Update forum activity (call this when user posts to forum)
+  Future<void> updateForumActivity() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return;
+
+      final userRef = _firestore.collection('users').doc(user.uid);
+      final snapshot = await userRef.get();
+
+      if (snapshot.exists) {
+        final userData = snapshot.data()!;
+        final currentPosts = userData['forumPosts'] ?? 0;
+
+        final updateData = {
+          'forumPosts': currentPosts + 1,
+          'lastActivity': DateTime.now().toString(),
+        };
+
+        await userRef.update(updateData);
+
+        // ✅ Update SharedPreferences
+        final updatedUserData = Map<String, dynamic>.from(userData);
+        updatedUserData.addAll(updateData);
+        await UserPreferences.saveUserData(updatedUserData);
+      }
+    } catch (e) {
+      print('Error updating forum activity: $e');
+    }
+  }
+
+  // Calculate next level EXP requirement
+  int _calculateNextLevelExp(int level) {
+    return 250 + (level - 1) * 50; // Increases by 50 each level
   }
 
   // Update user profile
@@ -184,87 +161,15 @@ class ProfileService {
         updateData['profileImageUrl'] = profileImageUrl;
 
       await _firestore.collection('users').doc(user.uid).update(updateData);
+
+      // ✅ Update SharedPreferences
+      final currentUserData = await UserPreferences.getUserData();
+      if (currentUserData != null) {
+        currentUserData.addAll(updateData);
+        await UserPreferences.saveUserData(currentUserData);
+      }
     } catch (e) {
-      print('Error updating user profile: $e');
+      print('Error updating profile: $e');
     }
-  }
-
-  // Sign out
-  Future<void> signOut() async {
-    try {
-      await _auth.signOut();
-    } catch (e) {
-      print('Error signing out: $e');
-      throw Exception('Failed to sign out');
-    }
-  }
-
-  // Helper methods
-  int _calculateLevel(int exp) {
-    if (exp < 1000) return 1;
-    return (exp / 1000).floor() + 1;
-  }
-
-  int _calculateNextLevelExp(int exp) {
-    final level = _calculateLevel(exp);
-    return level * 1000;
-  }
-
-  int _calculateCurrentLevelExp(int exp) {
-    final level = _calculateLevel(exp);
-    return exp - ((level - 1) * 1000);
-  }
-
-  Map<String, dynamic> _getDefaultDailyQuests() {
-    return {
-      'quest1Completed': false,
-      'quest2Completed': false,
-      'quest3Completed': false,
-    };
-  }
-
-  Map<String, dynamic> _getDefaultAchievements() {
-    return {
-      'jobHunter': false,
-      'budgetPro': false,
-      'socialButterfly': false,
-      'stressMaster': false,
-      'articleMaster': false,
-      'discussionKing': false,
-    };
-  }
-
-  // Sample data for fallback
-  Map<String, dynamic> _getSampleUserData() {
-    return {
-      'uid': 'sample_user',
-      'email': 'user@example.com',
-      'fullname': 'Andi Pratama',
-      'exp': 750,
-      'level': 5,
-      'nextLevelExp': 1000,
-      'currentLevelExp': 750,
-      'createdAt': DateTime.now().toString(),
-      'lastLogin': DateTime.now().toString(),
-      'profileImageUrl': '',
-      'totalScenarios': 23,
-      'totalArticles': 47,
-      'forumPosts': 12,
-      'streakDays': 7,
-      'dailyQuests': {
-        'quest1Completed': false,
-        'quest2Completed': true,
-        'quest3Completed': false,
-      },
-      'lastQuestReset': DateTime.now().toString(),
-      'achievements': {
-        'jobHunter': true,
-        'budgetPro': true,
-        'socialButterfly': false,
-        'stressMaster': false,
-        'articleMaster': false,
-        'discussionKing': false,
-      },
-    };
   }
 }

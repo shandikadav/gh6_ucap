@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gh6_ucap/routes/routes.dart';
+import 'package:gh6_ucap/services/user_preferences.dart';
 import 'package:gh6_ucap/themes/theme.dart';
 import 'package:gh6_ucap/ui/pages/advanture_simulation_page.dart';
 import 'package:gh6_ucap/ui/pages/all_adventure_page.dart';
@@ -63,11 +64,35 @@ class _Header extends StatefulWidget {
 class _HeaderState extends State<_Header> {
   String greeting = '';
   String greetingIcon = '';
+  String username = '';
 
   @override
-  void initState() {
+  void initState() async {
     super.initState();
     _setGreeting();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      final userData = await UserPreferences.getUserData();
+      if (userData != null) {
+        setState(() {
+          username = userData['fullname'] ?? 'User';
+        });
+      } else {
+        // Fallback: ambil dari UserPreferences method langsung
+        final userName = await UserPreferences.getUserName();
+        setState(() {
+          username = userName.isNotEmpty ? userName : 'User';
+        });
+      }
+    } catch (e) {
+      print('Error loading user data: $e');
+      setState(() {
+        username = 'User';
+      });
+    }
   }
 
   void _setGreeting() {
@@ -111,10 +136,10 @@ class _HeaderState extends State<_Header> {
                 ),
               ),
               Text(
-                'Pona Wijaya',
-                style: AppTheme.h1.copyWith(
+                username,
+                style: AppTheme.h3.copyWith(
                   color: AppTheme.textLightColor,
-                  fontSize: 30.sp,
+                  fontSize: 20.sp,
                 ),
               ),
             ],

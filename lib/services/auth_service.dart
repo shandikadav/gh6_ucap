@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'user_preferences.dart'; // Import UserPreferences
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -18,21 +19,58 @@ class AuthService {
     required String createdAt,
   }) async {
     try {
-      // Create user dengan Firebase Auth
       UserCredential userCredential = await _auth
           .createUserWithEmailAndPassword(email: email, password: password);
 
-      // Simpan data user ke Firestore
-      await _firestore.collection('users').doc(userCredential.user!.uid).set({
+      // Data user lengkap
+      final userData = {
         'uid': userCredential.user!.uid,
         'email': email,
         'fullname': fullname,
         'exp': 0,
+        'level': 1,
+        'currentLevelExp': 0,
+        'nextLevelExp': 250,
         'createdAt': createdAt,
         'lastLogin': DateTime.now().toString(),
-      });
+        'totalScenarios': 0,
+        'totalArticles': 0,
+        'forumPosts': 0,
+        'streakDays': 1,
+        'dailyQuests': {
+          'quest1Completed': false,
+          'quest2Completed': false,
+          'quest3Completed': false,
+        },
+        'lastQuestReset': DateTime.now().toString(),
+        'achievements': {
+          'jobHunter': false,
+          'budgetPro': false,
+          'socialButterfly': false,
+          'stressMaster': false,
+          'articleMaster': false,
+          'discussionKing': false,
+        },
+        'theme': 'light',
+        'notifications': {
+          'questReminders': true,
+          'achievementAlerts': true,
+          'weeklyReports': true,
+        },
+        'onboardingCompleted': false,
+        'firstTimeUser': true,
+      };
 
-      print('User created and saved to Firestore successfully');
+      // Simpan ke Firestore
+      await _firestore
+          .collection('users')
+          .doc(userCredential.user!.uid)
+          .set(userData);
+
+      // ✅ Simpan ke SharedPreferences
+      await UserPreferences.saveUserData(userData);
+
+      print('User created and saved successfully');
     } on FirebaseAuthException catch (e) {
       throw _handleAuthException(e);
     } catch (e) {
@@ -67,22 +105,59 @@ class AuthService {
           .doc(user.uid)
           .get();
 
+      Map<String, dynamic> userData;
+
       if (!userDoc.exists) {
-        await _firestore.collection('users').doc(user.uid).set({
+        userData = {
           'uid': user.uid,
           'email': user.email,
           'fullname': user.displayName ?? '',
           'exp': 0,
+          'level': 1,
+          'currentLevelExp': 0,
+          'nextLevelExp': 250,
           'createdAt': DateTime.now().toString(),
           'lastLogin': DateTime.now().toString(),
-        });
+          'totalScenarios': 0,
+          'totalArticles': 0,
+          'forumPosts': 0,
+          'streakDays': 1,
+          'dailyQuests': {
+            'quest1Completed': false,
+            'quest2Completed': false,
+            'quest3Completed': false,
+          },
+          'lastQuestReset': DateTime.now().toString(),
+          'achievements': {
+            'jobHunter': false,
+            'budgetPro': false,
+            'socialButterfly': false,
+            'stressMaster': false,
+            'articleMaster': false,
+            'discussionKing': false,
+          },
+          'theme': 'light',
+          'notifications': {
+            'questReminders': true,
+            'achievementAlerts': true,
+            'weeklyReports': true,
+          },
+          'onboardingCompleted': false,
+          'firstTimeUser': true,
+        };
+        await _firestore.collection('users').doc(user.uid).set(userData);
       } else {
+        userData = userDoc.data() as Map<String, dynamic>;
+        userData['lastLogin'] = DateTime.now().toString();
         await _firestore.collection('users').doc(user.uid).update({
           'lastLogin': DateTime.now().toString(),
         });
       }
 
-      print("GOOGLE BERHASIL BOSS");
+      // ✅ Simpan ke SharedPreferences
+      await UserPreferences.saveUserData(userData);
+
+      print("Google sign-in successful");
       return user;
     } on FirebaseAuthException catch (e) {
       throw _handleAuthException(e);
@@ -100,10 +175,23 @@ class AuthService {
         password: password,
       );
 
-      // Update last login di Firestore
-      await _firestore.collection('users').doc(userCredential.user!.uid).update(
-        {'lastLogin': DateTime.now().toString()},
-      );
+      // ✅ Ambil data user dari Firestore dan simpan ke SharedPreferences
+      DocumentSnapshot userDoc = await _firestore
+          .collection('users')
+          .doc(userCredential.user!.uid)
+          .get();
+
+      if (userDoc.exists) {
+        Map<String, dynamic> userData = userDoc.data() as Map<String, dynamic>;
+        userData['lastLogin'] = DateTime.now().toString();
+
+        await _firestore
+            .collection('users')
+            .doc(userCredential.user!.uid)
+            .update({'lastLogin': DateTime.now().toString()});
+
+        await UserPreferences.saveUserData(userData);
+      }
 
       print('User signed in successfully');
     } on FirebaseAuthException catch (e) {
@@ -117,6 +205,9 @@ class AuthService {
   Future<void> signOut() async {
     try {
       await _auth.signOut();
+      await _googleSignIn.signOut();
+      // ✅ Clear SharedPreferences
+      await UserPreferences.clearUserData();
       print('User signed out successfully');
     } catch (e) {
       throw 'Error signing out: $e';
@@ -131,7 +222,6 @@ class AuthService {
     return await _firestore.collection('users').doc(uid).get();
   }
 
-  // Handle Firebase Auth exceptions
   String _handleAuthException(FirebaseAuthException e) {
     switch (e.code) {
       case 'weak-password':

@@ -4,6 +4,7 @@ import 'package:equatable/equatable.dart';
 class ForumQuestion extends Equatable {
   final String id;
   final String title;
+  final String authorId;
   final String content;
   final String authorName;
   final bool isAnonymous;
@@ -18,6 +19,7 @@ class ForumQuestion extends Equatable {
     required this.isAnonymous,
     required this.replyCount,
     required this.createdAt,
+    required this.authorId,
   });
 
   factory ForumQuestion.fromFirestore(DocumentSnapshot doc) {
@@ -28,6 +30,7 @@ class ForumQuestion extends Equatable {
       content: data['content'] ?? '',
       authorName: data['authorName'] ?? 'Anonim',
       isAnonymous: data['isAnonymous'] ?? false,
+      authorId: data['authorId'] ?? '',
       replyCount: data['replyCount'] ?? 0,
       createdAt: data['createdAt'] ?? Timestamp.now(),
     );
