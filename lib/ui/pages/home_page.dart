@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gh6_ucap/routes/routes.dart';
+import 'package:gh6_ucap/services/scenario_service.dart';
+import 'package:gh6_ucap/services/user_preferences.dart';
 import 'package:gh6_ucap/themes/theme.dart';
 import 'package:gh6_ucap/ui/pages/advanture_simulation_page.dart';
 import 'package:gh6_ucap/ui/pages/all_adventure_page.dart';
@@ -63,11 +65,35 @@ class _Header extends StatefulWidget {
 class _HeaderState extends State<_Header> {
   String greeting = '';
   String greetingIcon = '';
+  String username = '';
 
   @override
   void initState() {
     super.initState();
     _setGreeting();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      final userData = await UserPreferences.getUserData();
+      if (userData != null) {
+        setState(() {
+          username = userData['fullname'] ?? 'User';
+        });
+      } else {
+        // Fallback: ambil dari UserPreferences method langsung
+        final userName = await UserPreferences.getUserName();
+        setState(() {
+          username = userName.isNotEmpty ? userName : 'User';
+        });
+      }
+    } catch (e) {
+      print('Error loading user data: $e');
+      setState(() {
+        username = 'User';
+      });
+    }
   }
 
   void _setGreeting() {
@@ -111,10 +137,10 @@ class _HeaderState extends State<_Header> {
                 ),
               ),
               Text(
-                'Pona Wijaya',
-                style: AppTheme.h1.copyWith(
+                username,
+                style: AppTheme.h3.copyWith(
                   color: AppTheme.textLightColor,
-                  fontSize: 30.sp,
+                  fontSize: 20.sp,
                 ),
               ),
             ],
@@ -265,36 +291,40 @@ class _StoryCard extends StatelessWidget {
   }
 }
 
-class _OtherAdventuresSection extends StatelessWidget {
-  final adventures = [
-    {
-      'title': 'Simulasi Negosiasi Gaji',
-      'tag': 'Karier',
-      'icon': Icons.trending_up_rounded,
-      'color': AppTheme.accentColor,
-      'isLocked': false,
-      'scenarioTitle': 'Negosiasi Gaji',
-      'category': 'Karier',
-    },
-    {
-      'title': 'Studi Kasus Budgeting',
-      'tag': 'Keuangan',
-      'icon': Icons.request_quote_rounded,
-      'color': AppTheme.successColor,
-      'isLocked': false,
-      'scenarioTitle': 'Budgeting Bulanan',
-      'category': 'Keuangan',
-    },
-    {
-      'title': 'Menghadapi Diskriminasi',
-      'tag': 'Sosial',
-      'icon': Icons.groups_rounded,
-      'color': const Color(0xFFF44336),
-      'isLocked': false,
-      'scenarioTitle': 'Menghadapi Diskriminasi',
-      'category': 'Sosial',
-    },
-  ];
+class _OtherAdventuresSection extends StatefulWidget {
+  @override
+  _OtherAdventuresSectionState createState() => _OtherAdventuresSectionState();
+}
+
+class _OtherAdventuresSectionState extends State<_OtherAdventuresSection> {
+  final ScenarioService _scenarioService = ScenarioService();
+  List<ScenarioWithStatus> scenarios = [];
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadScenarios();
+  }
+
+  Future<void> _loadScenarios() async {
+    try {
+      final scenarioList = await _scenarioService.getScenariosWithStatus();
+      if (mounted) {
+        setState(() {
+          scenarios = scenarioList.take(3).toList(); // Show only first 3
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading scenarios: $e');
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -330,52 +360,72 @@ class _OtherAdventuresSection extends StatelessWidget {
           ),
         ),
         SizedBox(height: 12.h),
-        SizedBox(
-          height: 170.h,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            itemCount: adventures.length,
-            padding: EdgeInsets.symmetric(horizontal: 20.w),
-            itemBuilder: (context, index) {
-              final adventure = adventures[index];
-              return _AdventureCaseCard(
-                title: adventure['title'] as String,
-                tag: adventure['tag'] as String,
-                icon: adventure['icon'] as IconData,
-                color: adventure['color'] as Color,
-                isLocked: adventure['isLocked'] as bool,
-                scenarioTitle: adventure['scenarioTitle'] as String,
-                category: adventure['category'] as String,
-              );
-            },
-          ),
-        ),
+
+        // Loading atau Content
+        isLoading
+            ? SizedBox(
+                height: 170.h,
+                child: Center(
+                  child: CircularProgressIndicator(
+                    color: AppTheme.primaryColor,
+                  ),
+                ),
+              )
+            : SizedBox(
+                height: 170.h,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: scenarios.length,
+                  padding: EdgeInsets.symmetric(horizontal: 20.w),
+                  itemBuilder: (context, index) {
+                    final scenarioWithStatus = scenarios[index];
+                    return _DynamicAdventureCaseCard(
+                      scenarioWithStatus: scenarioWithStatus,
+                    );
+                  },
+                ),
+              ),
         SizedBox(height: 20.h),
       ],
     );
   }
 }
 
-class _AdventureCaseCard extends StatelessWidget {
-  final String title, tag, scenarioTitle, category;
-  final IconData icon;
-  final Color color;
-  final bool isLocked;
+class _DynamicAdventureCaseCard extends StatelessWidget {
+  final ScenarioWithStatus scenarioWithStatus;
 
-  const _AdventureCaseCard({
-    required this.title,
-    required this.tag,
-    required this.icon,
-    required this.color,
-    required this.isLocked,
-    required this.scenarioTitle,
-    required this.category,
-  });
+  const _DynamicAdventureCaseCard({required this.scenarioWithStatus});
+
+  IconData _getIconFromName(String iconName) {
+    final iconMap = {
+      'record_voice_over': Icons.record_voice_over_rounded,
+      'trending_up': Icons.trending_up_rounded,
+      'account_balance_wallet': Icons.account_balance_wallet_rounded,
+      'groups': Icons.groups_rounded,
+      'home': Icons.home_rounded,
+      'credit_card_off': Icons.credit_card_off_rounded,
+      'swap_horiz': Icons.swap_horiz_rounded,
+      'work': Icons.work_rounded,
+    };
+    return iconMap[iconName] ?? Icons.help_outline_rounded;
+  }
+
+  Color _getColorFromHex(String hexColor) {
+    try {
+      return Color(int.parse(hexColor.replaceFirst('#', '0xFF')));
+    } catch (e) {
+      return AppTheme.accentColor;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final scenario = scenarioWithStatus.scenario;
+    final isLocked = !scenarioWithStatus.isUnlocked;
+    final color = _getColorFromHex(scenario.colorHex);
+
     return Container(
-      width: 140.w,
+      width: 160.w,
       margin: EdgeInsets.only(right: 16.w),
       decoration: BoxDecoration(
         color: isLocked ? Colors.grey.shade300 : AppTheme.surfaceColor,
@@ -386,14 +436,14 @@ class _AdventureCaseCard extends StatelessWidget {
       ),
       child: InkWell(
         onTap: isLocked
-            ? null
+            ? () => _showLockDialog(context)
             : () {
                 HapticFeedback.lightImpact();
                 context.pushNamed(
                   RouteName.adventure,
                   pathParameters: {
-                    'scenarioTitle': Uri.encodeComponent(scenarioTitle),
-                    'category': Uri.encodeComponent(category),
+                    'scenarioTitle': Uri.encodeComponent(scenario.title),
+                    'category': Uri.encodeComponent(scenario.category),
                   },
                 );
               },
@@ -406,26 +456,57 @@ class _AdventureCaseCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Container(
-                    padding: EdgeInsets.all(8.r),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: isLocked
-                          ? null
-                          : LinearGradient(
-                              colors: [color.withOpacity(0.5), color],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
+                  // Icon dengan requirement badge
+                  Stack(
+                    children: [
+                      Container(
+                        padding: EdgeInsets.all(8.r),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: isLocked
+                              ? null
+                              : LinearGradient(
+                                  colors: [color.withOpacity(0.5), color],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                          color: isLocked ? Colors.grey.shade400 : null,
+                        ),
+                        child: Icon(
+                          _getIconFromName(scenario.iconName),
+                          size: 24.sp,
+                          color: Colors.white,
+                        ),
+                      ),
+                      if (isLocked)
+                        Positioned(
+                          top: -2,
+                          right: -2,
+                          child: Container(
+                            padding: EdgeInsets.all(2.w),
+                            decoration: BoxDecoration(
+                              color: Colors.orange,
+                              shape: BoxShape.circle,
                             ),
-                      color: isLocked ? Colors.grey.shade400 : null,
-                    ),
-                    child: Icon(icon, size: 24.sp, color: Colors.white),
+                            child: Text(
+                              'L${scenario.requiredLevel}',
+                              style: TextStyle(
+                                fontSize: 8.sp,
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
+
+                  // Content
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        title,
+                        scenario.title,
                         style: AppTheme.subtitle2.copyWith(
                           fontSize: 13.sp,
                           color: isLocked
@@ -436,12 +517,35 @@ class _AdventureCaseCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                       SizedBox(height: 4.h),
-                      Text(
-                        tag,
-                        style: AppTheme.caption.copyWith(
-                          color: isLocked ? Colors.grey.shade700 : color,
-                        ),
+                      Row(
+                        children: [
+                          Text(
+                            scenario.tag,
+                            style: AppTheme.caption.copyWith(
+                              color: isLocked ? Colors.grey.shade700 : color,
+                            ),
+                          ),
+                          SizedBox(width: 4.w),
+                          Text(
+                            '• ${scenario.estimatedTime}m',
+                            style: AppTheme.caption.copyWith(
+                              color: Colors.grey.shade500,
+                              fontSize: 10.sp,
+                            ),
+                          ),
+                        ],
                       ),
+                      if (isLocked) ...[
+                        SizedBox(height: 4.h),
+                        Text(
+                          'Butuh ${scenarioWithStatus.expNeeded} EXP lagi',
+                          style: TextStyle(
+                            fontSize: 9.sp,
+                            color: Colors.orange,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ],
@@ -457,6 +561,126 @@ class _AdventureCaseCard extends StatelessWidget {
               ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showLockDialog(BuildContext context) {
+    final scenario = scenarioWithStatus.scenario;
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20.r),
+        ),
+        title: Row(
+          children: [
+            Icon(Icons.lock, color: Colors.orange, size: 24.w),
+            SizedBox(width: 8.w),
+            Expanded(
+              child: Text(
+                'Scenario Terkunci',
+                style: TextStyle(fontSize: 18.sp, color: Colors.orange),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '🎯 ${scenario.title}',
+              style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 8.h),
+            Text(
+              'Requirement untuk membuka:',
+              style: TextStyle(fontSize: 14.sp, color: Colors.grey[600]),
+            ),
+            SizedBox(height: 8.h),
+            Row(
+              children: [
+                Icon(Icons.star, color: Colors.amber, size: 16.w),
+                SizedBox(width: 4.w),
+                Text(
+                  'Level ${scenario.requiredLevel}',
+                  style: TextStyle(fontSize: 13.sp),
+                ),
+              ],
+            ),
+            SizedBox(height: 4.h),
+            Row(
+              children: [
+                Icon(Icons.trending_up, color: Colors.blue, size: 16.w),
+                SizedBox(width: 4.w),
+                Text(
+                  '${scenario.requiredExp} EXP',
+                  style: TextStyle(fontSize: 13.sp),
+                ),
+              ],
+            ),
+            SizedBox(height: 12.h),
+            Container(
+              padding: EdgeInsets.all(12.w),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8.r),
+                border: Border.all(color: Colors.blue.withOpacity(0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Progres saat ini:',
+                    style: TextStyle(
+                      fontSize: 12.sp,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue,
+                    ),
+                  ),
+                  SizedBox(height: 4.h),
+                  Text(
+                    'Level: ${scenarioWithStatus.userLevel}/${scenario.requiredLevel}',
+                    style: TextStyle(fontSize: 11.sp),
+                  ),
+                  Text(
+                    'EXP: ${scenarioWithStatus.userExp}/${scenario.requiredExp}',
+                    style: TextStyle(fontSize: 11.sp),
+                  ),
+                  if (scenarioWithStatus.expNeeded > 0) ...[
+                    SizedBox(height: 4.h),
+                    Text(
+                      'Butuh ${scenarioWithStatus.expNeeded} EXP lagi!',
+                      style: TextStyle(
+                        fontSize: 11.sp,
+                        color: Colors.orange,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Mengerti'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              // Navigate to scenarios that can give EXP
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryColor,
+              foregroundColor: Colors.white,
+            ),
+            child: Text('Main Skenario Lain'),
+          ),
+        ],
       ),
     );
   }

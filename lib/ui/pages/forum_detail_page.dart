@@ -1,21 +1,30 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
-import 'package:gh6_ucap/themes/theme.dart';
-import 'package:gh6_ucap/themes/theme.dart'; // Pastikan path ini benar
+import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:gh6_ucap/services/forum_service.dart';
+import 'package:timeago/timeago.dart' as timeago;
 
 class ForumDetailPage extends StatefulWidget {
-  // Data ini akan diterima dari halaman sebelumnya (halaman list forum)
+  final String questionId;
   final String questionTitle;
   final String questionContent;
   final String author;
   final bool isAnonymous;
+  final String authorId;
+  final Timestamp createdAt;
 
   const ForumDetailPage({
     super.key,
+    required this.questionId,
     required this.questionTitle,
     required this.questionContent,
-    this.author = 'User123',
-    this.isAnonymous = false,
+    required this.author,
+    required this.isAnonymous,
+    required this.authorId,
+    required this.createdAt,
   });
 
   @override
@@ -24,40 +33,112 @@ class ForumDetailPage extends StatefulWidget {
 
 class _ForumDetailPageState extends State<ForumDetailPage> {
   final TextEditingController _replyController = TextEditingController();
+  final ForumService _forumService = ForumService();
+  final FocusNode _replyFocusNode = FocusNode();
+  
+  bool _isAnonymousReply = true;
+  bool _isLoadingReply = false;
+  String _currentUserName = 'User';
 
-  // Dummy data untuk balasan
-  final List<Map<String, dynamic>> replies = [
-    {
-      'author': 'Mbak Sarah (Mentor)',
-      'content':
-          'Pertanyaan bagus! Negosiasi gaji sebagai fresh graduate itu wajar kok. Kuncinya adalah riset standar gaji untuk posisimu dan tunjukkan value yang bisa kamu bawa ke perusahaan. Jangan takut, mereka sudah expect ini!',
-      'isMentor': true,
-      'likes': 15,
-    },
-    {
-      'author': 'User456',
-      'content':
-          'Aku pernah coba nego dan berhasil naik 10% dari tawaran awal. Waktu itu aku bilang kalau aku punya skill X yang sesuai banget sama kebutuhan mereka.',
-      'isMentor': false,
-      'likes': 8,
-    },
-    {
-      'author': 'Anonim',
-      'content':
-          'Sama, aku juga lagi di posisi ini. Thanks banget buat infonya!',
-      'isMentor': false,
-      'likes': 3,
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    timeago.setLocaleMessages('id', timeago.IdMessages());
+    _loadCurrentUser();
+  }
+
+  @override
+  void dispose() {
+    _replyController.dispose();
+    _replyFocusNode.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadCurrentUser() async {
+    final userData = await _forumService.getCurrentUserData();
+    if (userData != null && mounted) {
+      setState(() {
+        _currentUserName = userData['fullname'] ?? 'User';
+      });
+    }
+  }
+
+  Future<void> _submitReply() async {
+    if (_replyController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Balasan tidak boleh kosong!'),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12.r),
+          ),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isLoadingReply = true);
+
+    try {
+      await _forumService.addReply(
+        questionId: widget.questionId,
+        content: _replyController.text.trim(),
+        isAnonymous: _isAnonymousReply,
+      );
+
+      _replyController.clear();
+      _replyFocusNode.unfocus();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Balasan berhasil dikirim!'),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12.r),
+          ),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal mengirim balasan: $e'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12.r),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingReply = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
+      backgroundColor: const Color(0xFFF8F5EE),
       appBar: AppBar(
-        title: Text('Detail Diskusi', style: AppTheme.subtitle1),
+        backgroundColor: const Color(0xFFF8F5EE),
+        elevation: 0,
+        title: Text(
+          'Detail Diskusi',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+            fontSize: 18.sp,
+          ),
+        ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          icon: Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: Colors.black87,
+            size: 20.w,
+          ),
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
@@ -67,41 +148,170 @@ class _ForumDetailPageState extends State<ForumDetailPage> {
             child: CustomScrollView(
               physics: const BouncingScrollPhysics(),
               slivers: [
-                // Widget untuk menampilkan pertanyaan utama
+                // Question Header
                 SliverToBoxAdapter(child: _buildQuestionHeader()),
 
-                // Judul section untuk balasan
+                // Replies Section
                 SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
-                    child: Text(
-                      '${replies.length} Balasan',
-                      style: AppTheme.h3,
+                    padding: EdgeInsets.fromLTRB(24.w, 24.h, 24.w, 16.h),
+                    child: StreamBuilder<List<ForumReply>>(
+                      stream: _forumService.getReplies(widget.questionId),
+                      builder: (context, snapshot) {
+                        if (snapshot.hasError) {
+                          return Text(
+                            'Error loading replies',
+                            style: TextStyle(color: Colors.red, fontSize: 14.sp),
+                          );
+                        }
+
+                        final replyCount = snapshot.hasData ? snapshot.data!.length : 0;
+                        return Text(
+                          '$replyCount Balasan',
+                          style: TextStyle(
+                            fontSize: 18.sp,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ),
 
-                // List balasan dengan animasi
-                _buildRepliesList(),
+                // Replies List
+                StreamBuilder<List<ForumReply>>(
+                  stream: _forumService.getReplies(widget.questionId),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return SliverToBoxAdapter(
+                        child: Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(32.w),
+                            child: CircularProgressIndicator(
+                              color: const Color(0xFFFFD700),
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+
+                    if (snapshot.hasError) {
+                      return SliverToBoxAdapter(
+                        child: Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(32.w),
+                            child: Column(
+                              children: [
+                                Icon(
+                                  Icons.error_outline,
+                                  size: 48.w,
+                                  color: Colors.grey[400],
+                                ),
+                                SizedBox(height: 16.h),
+                                Text(
+                                  'Gagal memuat balasan',
+                                  style: TextStyle(
+                                    fontSize: 16.sp,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+
+                    final replies = snapshot.data ?? [];
+
+                    if (replies.isEmpty) {
+                      return SliverToBoxAdapter(
+                        child: Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(32.w),
+                            child: Column(
+                              children: [
+                                Icon(
+                                  Icons.chat_bubble_outline,
+                                  size: 48.w,
+                                  color: Colors.grey[400],
+                                ),
+                                SizedBox(height: 16.h),
+                                Text(
+                                  'Belum ada balasan',
+                                  style: TextStyle(
+                                    fontSize: 16.sp,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                                SizedBox(height: 8.h),
+                                Text(
+                                  'Jadilah yang pertama memberikan balasan!',
+                                  style: TextStyle(
+                                    fontSize: 14.sp,
+                                    color: Colors.grey[500],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+
+                    return SliverPadding(
+                      padding: EdgeInsets.symmetric(horizontal: 24.w),
+                      sliver: SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            final reply = replies[index];
+                            return AnimationConfiguration.staggeredList(
+                              position: index,
+                              duration: const Duration(milliseconds: 400),
+                              child: SlideAnimation(
+                                verticalOffset: 50.0,
+                                child: FadeInAnimation(
+                                  child: _buildReplyCard(reply),
+                                ),
+                              ),
+                            );
+                          },
+                          childCount: replies.length,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+
+                // Bottom spacing
+                SliverToBoxAdapter(child: SizedBox(height: 100.h)),
               ],
             ),
           ),
-          // Input field untuk membalas
+
+          // Reply Input
           _buildReplyInput(),
         ],
       ),
     );
   }
 
-  /// Widget untuk menampilkan header pertanyaan utama.
   Widget _buildQuestionHeader() {
     return Container(
-      padding: const EdgeInsets.all(24),
-      margin: const EdgeInsets.symmetric(horizontal: 24),
+      padding: EdgeInsets.all(24.w),
+      margin: EdgeInsets.symmetric(horizontal: 24.w, vertical: 16.h),
       decoration: BoxDecoration(
-        color: AppTheme.surfaceColor,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade200),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20.r),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -109,129 +319,201 @@ class _ForumDetailPageState extends State<ForumDetailPage> {
           Row(
             children: [
               CircleAvatar(
-                radius: 20,
-                backgroundColor: AppTheme.primaryColor.withOpacity(0.2),
+                radius: 20.r,
+                backgroundColor: const Color(0xFFFFD700).withOpacity(0.2),
                 child: Icon(
                   widget.isAnonymous
                       ? Icons.help_outline_rounded
                       : Icons.person_outline_rounded,
-                  color: AppTheme.primaryColorDark,
+                  color: const Color(0xFFC7A500),
+                  size: 20.w,
                 ),
               ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.isAnonymous ? 'Anonim' : widget.author,
-                    style: AppTheme.subtitle2,
-                  ),
-                  Text('2 jam yang lalu', style: AppTheme.caption),
-                ],
+              SizedBox(width: 12.w),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.isAnonymous ? 'Anonim' : widget.author,
+                      style: TextStyle(
+                        fontSize: 14.sp,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    Text(
+                      timeago.format(widget.createdAt.toDate(), locale: 'id'),
+                      style: TextStyle(
+                        fontSize: 12.sp,
+                        color: Colors.grey[500],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          Text(widget.questionTitle, style: AppTheme.h3),
-          const SizedBox(height: 8),
+          SizedBox(height: 16.h),
+          Text(
+            widget.questionTitle,
+            style: TextStyle(
+              fontSize: 18.sp,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+          ),
+          SizedBox(height: 8.h),
           Text(
             widget.questionContent,
-            style: AppTheme.body1.copyWith(color: AppTheme.textSecondaryColor),
+            style: TextStyle(
+              fontSize: 14.sp,
+              color: Colors.grey[700],
+              height: 1.5,
+            ),
           ),
         ],
       ),
     );
   }
 
-  /// Widget untuk membangun list balasan yang dianimasikan.
-  Widget _buildRepliesList() {
-    return SliverPadding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      sliver: SliverList(
-        delegate: SliverChildBuilderDelegate((context, index) {
-          final reply = replies[index];
-          return AnimationConfiguration.staggeredList(
-            position: index,
-            duration: const Duration(milliseconds: 400),
-            child: SlideAnimation(
-              verticalOffset: 50.0,
-              child: FadeInAnimation(
-                child: _buildReplyCard(
-                  author: reply['author'],
-                  content: reply['content'],
-                  isMentor: reply['isMentor'],
-                  likes: reply['likes'],
-                ),
-              ),
-            ),
-          );
-        }, childCount: replies.length),
-      ),
-    );
-  }
+  Widget _buildReplyCard(ForumReply reply) {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    final isLikedByCurrentUser = currentUser != null && 
+        reply.likedBy.contains(currentUser.uid);
 
-  /// Widget untuk satu kartu balasan.
-  Widget _buildReplyCard({
-    required String author,
-    required String content,
-    required bool isMentor,
-    required int likes,
-  }) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(20),
+      margin: EdgeInsets.only(bottom: 16.h),
+      padding: EdgeInsets.all(20.w),
       decoration: BoxDecoration(
-        color: isMentor
-            ? AppTheme.primaryColor.withOpacity(0.1)
-            : AppTheme.surfaceColor,
-        borderRadius: BorderRadius.circular(16),
-        border: isMentor
-            ? Border.all(color: AppTheme.primaryColor, width: 1.5)
-            : null,
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16.r),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Text(author, style: AppTheme.subtitle2),
-              if (isMentor) ...[
-                const SizedBox(width: 8),
+              CircleAvatar(
+                radius: 16.r,
+                backgroundColor: const Color(0xFFFFD700).withOpacity(0.2),
+                child: Icon(
+                  reply.isAnonymous
+                      ? Icons.help_outline_rounded
+                      : Icons.person_outline_rounded,
+                  color: const Color(0xFFC7A500),
+                  size: 16.w,
+                ),
+              ),
+              SizedBox(width: 12.w),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      reply.authorName,
+                      style: TextStyle(
+                        fontSize: 14.sp,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    Text(
+                      timeago.format(reply.createdAt.toDate(), locale: 'id'),
+                      style: TextStyle(
+                        fontSize: 12.sp,
+                        color: Colors.grey[500],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (reply.isEdited)
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
+                  padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
                   decoration: BoxDecoration(
-                    color: AppTheme.primaryColor,
-                    borderRadius: BorderRadius.circular(8),
+                    color: Colors.grey.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8.r),
                   ),
                   child: Text(
-                    'MENTOR',
-                    style: AppTheme.caption.copyWith(
-                      color: AppTheme.textPrimaryColor,
-                      fontWeight: FontWeight.bold,
+                    'Diedit',
+                    style: TextStyle(
+                      fontSize: 10.sp,
+                      color: Colors.grey[600],
+                      fontStyle: FontStyle.italic,
                     ),
                   ),
                 ),
-              ],
             ],
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 12.h),
           Text(
-            content,
-            style: AppTheme.body2.copyWith(color: AppTheme.textPrimaryColor),
+            reply.content,
+            style: TextStyle(
+              fontSize: 14.sp,
+              color: Colors.grey[700],
+              height: 1.5,
+            ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12.h),
           Row(
             children: [
-              Icon(
-                Icons.favorite_border_rounded,
-                size: 18,
-                color: AppTheme.textSecondaryColor,
+              InkWell(
+                onTap: currentUser != null ? () async {
+                  HapticFeedback.lightImpact();
+                  try {
+                    await _forumService.toggleReplyLike(
+                      widget.questionId,
+                      reply.id,
+                    );
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Error: $e'),
+                        backgroundColor: Colors.red,
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12.r),
+                        ),
+                      ),
+                    );
+                  }
+                } : null,
+                borderRadius: BorderRadius.circular(20.r),
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        isLikedByCurrentUser
+                            ? Icons.favorite_rounded
+                            : Icons.favorite_border_rounded,
+                        size: 18.w,
+                        color: isLikedByCurrentUser
+                            ? Colors.red
+                            : Colors.grey[500],
+                      ),
+                      SizedBox(width: 4.w),
+                      Text(
+                        '${reply.likes}',
+                        style: TextStyle(
+                          fontSize: 12.sp,
+                          color: Colors.grey[600],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              const SizedBox(width: 4),
-              Text('$likes', style: AppTheme.caption),
             ],
           ),
         ],
@@ -239,12 +521,11 @@ class _ForumDetailPageState extends State<ForumDetailPage> {
     );
   }
 
-  /// Widget untuk input field balasan di bagian bawah.
   Widget _buildReplyInput() {
     return Container(
-      padding: const EdgeInsets.all(16.0),
+      padding: EdgeInsets.all(16.w),
       decoration: BoxDecoration(
-        color: AppTheme.surfaceColor,
+        color: Colors.white,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -254,28 +535,103 @@ class _ForumDetailPageState extends State<ForumDetailPage> {
         ],
       ),
       child: SafeArea(
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: TextField(
-                controller: _replyController,
-                decoration: InputDecoration(
-                  hintText: 'Tulis balasanmu...',
-                  fillColor: AppTheme.backgroundColor,
-                  // Menggunakan InputDecorationTheme dari AppTheme
+            // Anonymous toggle
+            Row(
+              children: [
+                Icon(
+                  Icons.visibility_off_outlined,
+                  size: 16.w,
+                  color: Colors.grey[600],
                 ),
+                SizedBox(width: 8.w),
+                Text(
+                  'Kirim sebagai anonim',
+                  style: TextStyle(
+                    fontSize: 12.sp,
+                    color: Colors.grey[600],
+                  ),
+                ),
+                const Spacer(),
+                Switch.adaptive(
+                  value: _isAnonymousReply,
+                  onChanged: (value) {
+                    setState(() => _isAnonymousReply = value);
+                  },
+                  activeColor: const Color(0xFFFFD700),
+                ),
+              ],
+            ),
+            SizedBox(height: 8.h),
+            
+            // Preview of name
+            Text(
+              'Tampil sebagai: ${_isAnonymousReply ? "Anonim" : _currentUserName}',
+              style: TextStyle(
+                fontSize: 12.sp,
+                color: Colors.grey[500],
+                fontStyle: FontStyle.italic,
               ),
             ),
-            const SizedBox(width: 12),
-            ElevatedButton(
-              onPressed: () {
-                // Logika kirim balasan
-              },
-              style: ElevatedButton.styleFrom(
-                shape: const CircleBorder(),
-                padding: const EdgeInsets.all(16),
-              ),
-              child: const Icon(Icons.send_rounded),
+            SizedBox(height: 12.h),
+            
+            // Input field
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _replyController,
+                    focusNode: _replyFocusNode,
+                    maxLines: null,
+                    decoration: InputDecoration(
+                      hintText: 'Tulis balasanmu...',
+                      fillColor: const Color(0xFFF8F5EE),
+                      filled: true,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12.r),
+                        borderSide: BorderSide.none,
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12.r),
+                        borderSide: const BorderSide(
+                          color: Color(0xFFFFD700),
+                          width: 2,
+                        ),
+                      ),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 16.w,
+                        vertical: 12.h,
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(width: 12.w),
+                ElevatedButton(
+                  onPressed: _isLoadingReply ? null : _submitReply,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFFD700),
+                    foregroundColor: Colors.black87,
+                    shape: CircleBorder(),
+                    padding: EdgeInsets.all(16.w),
+                    elevation: 0,
+                  ),
+                  child: _isLoadingReply
+                      ? SizedBox(
+                          width: 20.w,
+                          height: 20.w,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.black87),
+                          ),
+                        )
+                      : Icon(
+                          Icons.send_rounded,
+                          size: 20.w,
+                        ),
+                ),
+              ],
             ),
           ],
         ),

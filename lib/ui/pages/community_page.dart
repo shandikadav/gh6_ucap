@@ -6,6 +6,8 @@ import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:gh6_ucap/bloc/community/community_bloc.dart';
 import 'package:gh6_ucap/models/community_model.dart';
 import 'package:gh6_ucap/services/community_service.dart';
+import 'package:gh6_ucap/services/user_preferences.dart';
+import 'package:gh6_ucap/ui/pages/forum_detail_page.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
 class CommunityPage extends StatelessWidget {
@@ -14,9 +16,9 @@ class CommunityPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (context) => CommunityBloc(
-        communityRepository: CommunityRepository(),
-      )..add(FetchCommunityData()),
+      create: (context) =>
+          CommunityBloc(communityRepository: CommunityRepository())
+            ..add(FetchCommunityData()),
       child: const CommunityView(),
     );
   }
@@ -109,15 +111,16 @@ class _CommunityViewState extends State<CommunityView> {
                     child: CircularProgressIndicator(color: Color(0xFFFFD700)),
                   );
                 }
-                
-                if (state is CommunityLoaded || state is CommunityCreatingQuestion) {
-                  final questions = state is CommunityLoaded 
-                      ? state.questions 
+
+                if (state is CommunityLoaded ||
+                    state is CommunityCreatingQuestion) {
+                  final questions = state is CommunityLoaded
+                      ? state.questions
                       : (state as CommunityCreatingQuestion).questions;
-                  final mentors = state is CommunityLoaded 
-                      ? state.mentors 
+                  final mentors = state is CommunityLoaded
+                      ? state.mentors
                       : (state as CommunityCreatingQuestion).mentors;
-                      
+
                   return RefreshIndicator(
                     onRefresh: () async {
                       context.read<CommunityBloc>().add(RefreshCommunityData());
@@ -133,7 +136,7 @@ class _CommunityViewState extends State<CommunityView> {
                     ),
                   );
                 }
-                
+
                 if (state is CommunityError) {
                   return Center(
                     child: Column(
@@ -168,7 +171,9 @@ class _CommunityViewState extends State<CommunityView> {
                         const SizedBox(height: 24),
                         ElevatedButton(
                           onPressed: () {
-                            context.read<CommunityBloc>().add(FetchCommunityData());
+                            context.read<CommunityBloc>().add(
+                              FetchCommunityData(),
+                            );
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFFFFD700),
@@ -183,7 +188,7 @@ class _CommunityViewState extends State<CommunityView> {
                     ),
                   );
                 }
-                
+
                 return const Center(child: Text('Silakan coba lagi.'));
               },
             ),
@@ -192,12 +197,14 @@ class _CommunityViewState extends State<CommunityView> {
       ),
       floatingActionButton: _selectedTab == 0
           ? FloatingActionButton.extended(
-              onPressed: _isCreatingQuestion ? null : () {
-                HapticFeedback.lightImpact();
-                _showCreateQuestionDialog(context);
-              },
-              backgroundColor: _isCreatingQuestion 
-                  ? Colors.grey[400] 
+              onPressed: _isCreatingQuestion
+                  ? null
+                  : () {
+                      HapticFeedback.lightImpact();
+                      _showCreateQuestionDialog(context);
+                    },
+              backgroundColor: _isCreatingQuestion
+                  ? Colors.grey[400]
                   : const Color(0xFFFFD700),
               foregroundColor: Colors.black87,
               icon: _isCreatingQuestion
@@ -206,7 +213,9 @@ class _CommunityViewState extends State<CommunityView> {
                       height: 20,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.black87),
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          Colors.black87,
+                        ),
                       ),
                     )
                   : const Icon(Icons.add_comment_rounded),
@@ -285,11 +294,7 @@ class _CommunityViewState extends State<CommunityView> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.forum_outlined,
-              size: 64,
-              color: Colors.grey[400],
-            ),
+            Icon(Icons.forum_outlined, size: 64, color: Colors.grey[400]),
             const SizedBox(height: 16),
             Text(
               'Belum ada pertanyaan',
@@ -302,16 +307,13 @@ class _CommunityViewState extends State<CommunityView> {
             const SizedBox(height: 8),
             Text(
               'Jadilah yang pertama bertanya!',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[500],
-              ),
+              style: TextStyle(fontSize: 14, color: Colors.grey[500]),
             ),
           ],
         ),
       );
     }
-    
+
     return AnimationLimiter(
       child: ListView.builder(
         padding: const EdgeInsets.all(20),
@@ -337,11 +339,7 @@ class _CommunityViewState extends State<CommunityView> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.people_outline,
-              size: 64,
-              color: Colors.grey[400],
-            ),
+            Icon(Icons.people_outline, size: 64, color: Colors.grey[400]),
             const SizedBox(height: 16),
             Text(
               'Belum ada mentor tersedia',
@@ -354,16 +352,13 @@ class _CommunityViewState extends State<CommunityView> {
             const SizedBox(height: 8),
             Text(
               'Mentor akan segera hadir!',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[500],
-              ),
+              style: TextStyle(fontSize: 14, color: Colors.grey[500]),
             ),
           ],
         ),
       );
     }
-    
+
     return AnimationLimiter(
       child: ListView.builder(
         padding: const EdgeInsets.all(20),
@@ -469,10 +464,17 @@ class _CommunityViewState extends State<CommunityView> {
                 onPressed: () {
                   HapticFeedback.lightImpact();
                   // Navigate to question detail (implement later)
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Detail pertanyaan akan segera tersedia'),
-                      behavior: SnackBarBehavior.floating,
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => ForumDetailPage(
+                        questionId: question.id, // Perlu tambahkan id di model
+                        questionTitle: question.title,
+                        questionContent: question.content,
+                        author: question.authorName,
+                        isAnonymous: question.isAnonymous,
+                        authorId: question.authorId,
+                        createdAt: question.createdAt,
+                      ),
                     ),
                   );
                 },
@@ -520,11 +522,7 @@ class _CommunityViewState extends State<CommunityView> {
                         ? NetworkImage(mentor.profilePictureUrl)
                         : null,
                     child: mentor.profilePictureUrl.isEmpty
-                        ? Icon(
-                            Icons.person,
-                            size: 30,
-                            color: Color(0xFFC7A500),
-                          )
+                        ? Icon(Icons.person, size: 30, color: Color(0xFFC7A500))
                         : null,
                   ),
                   if (mentor.isOnline)
@@ -571,12 +569,12 @@ class _CommunityViewState extends State<CommunityView> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: mentor.isOnline 
+                  color: mentor.isOnline
                       ? const Color(0xFF4CAF50).withOpacity(0.1)
                       : Colors.grey.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: mentor.isOnline 
+                    color: mentor.isOnline
                         ? const Color(0xFF4CAF50).withOpacity(0.3)
                         : Colors.grey.withOpacity(0.3),
                   ),
@@ -585,7 +583,9 @@ class _CommunityViewState extends State<CommunityView> {
                   mentor.isOnline ? 'Online' : 'Offline',
                   style: TextStyle(
                     fontSize: 10,
-                    color: mentor.isOnline ? const Color(0xFF4CAF50) : Colors.grey,
+                    color: mentor.isOnline
+                        ? const Color(0xFF4CAF50)
+                        : Colors.grey,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -604,7 +604,8 @@ class _CommunityViewState extends State<CommunityView> {
             Wrap(
               spacing: 6,
               runSpacing: 6,
-              children: mentor.skills.take(4)
+              children: mentor.skills
+                  .take(4)
                   .map(
                     (skill) => Container(
                       padding: const EdgeInsets.symmetric(
@@ -635,19 +636,21 @@ class _CommunityViewState extends State<CommunityView> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: mentor.isOnline ? () {
-                HapticFeedback.lightImpact();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Memulai chat dengan ${mentor.name}'),
-                    backgroundColor: Colors.green,
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                );
-              } : null,
+              onPressed: mentor.isOnline
+                  ? () {
+                      HapticFeedback.lightImpact();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Memulai chat dengan ${mentor.name}'),
+                          backgroundColor: Colors.green,
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      );
+                    }
+                  : null,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF4CAF50),
                 foregroundColor: Colors.white,
@@ -670,55 +673,40 @@ class _CommunityViewState extends State<CommunityView> {
   }
 
   /// Dialog untuk membuat pertanyaan baru, sekarang terhubung dengan BLoC.
-  void _showCreateQuestionDialog(BuildContext context) {
+  void _showCreateQuestionDialog(BuildContext context) async {
     final titleController = TextEditingController();
     final contentController = TextEditingController();
-    bool isAnonymous = true; // Default ke anonim
+    bool isAnonymous = true;
 
-    showModalBottomSheet(
+    // ✅ Ambil data user dari SharedPreferences
+    final userData = await UserPreferences.getUserData();
+    final userId = userData?['uid'] ?? '';
+    final userName = userData?['fullname'] ?? 'User';
+
+    final communityBloc = context.read<CommunityBloc>();
+
+    showDialog(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
       builder: (dialogContext) {
         return StatefulBuilder(
-          builder: (BuildContext context, StateSetter setModalState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).viewInsets.bottom,
+          builder: (context, setModalState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
               ),
-              child: Container(
-                padding: const EdgeInsets.all(24),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(24),
-                    topRight: Radius.circular(24),
-                  ),
+              title: const Text(
+                'Buat Pertanyaan Baru',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
                 ),
+              ),
+              content: SizedBox(
+                width: double.maxFinite,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Center(
-                      child: Container(
-                        width: 40,
-                        height: 4,
-                        margin: const EdgeInsets.only(bottom: 20),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[300],
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                    ),
-                    const Text(
-                      'Buat Pertanyaan Baru',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
                     TextField(
                       controller: titleController,
                       decoration: InputDecoration(
@@ -729,7 +717,9 @@ class _CommunityViewState extends State<CommunityView> {
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFFFD700)),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFFFD700),
+                          ),
                         ),
                       ),
                     ),
@@ -745,13 +735,17 @@ class _CommunityViewState extends State<CommunityView> {
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFFFD700)),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFFFD700),
+                          ),
                         ),
                       ),
                     ),
                     SwitchListTile.adaptive(
                       title: const Text('Kirim sebagai anonim'),
-                      subtitle: const Text('Identitas Anda akan disembunyikan'),
+                      subtitle: Text(
+                        'Tampil sebagai: ${isAnonymous ? "Anonim" : userName}',
+                      ),
                       value: isAnonymous,
                       onChanged: (value) =>
                           setModalState(() => isAnonymous = value),
@@ -759,28 +753,32 @@ class _CommunityViewState extends State<CommunityView> {
                       contentPadding: EdgeInsets.zero,
                       activeColor: const Color(0xFFFFD700),
                     ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _isCreatingQuestion ? null : () {
-                          // Validasi sederhana
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Batal'),
+                ),
+                ElevatedButton(
+                  onPressed: _isCreatingQuestion
+                      ? null
+                      : () {
                           if (titleController.text.trim().isNotEmpty &&
                               contentController.text.trim().isNotEmpty) {
-                            // Memicu event BLoC untuk menambahkan pertanyaan
-                            context.read<CommunityBloc>().add(
+                            // ✅ Gunakan data user yang benar
+                            communityBloc.add(
                               AddForumQuestion(
                                 title: titleController.text.trim(),
                                 content: contentController.text.trim(),
                                 isAnonymous: isAnonymous,
-                                // TODO: Get real user data from auth service
-                                authorId: 'user_${DateTime.now().millisecondsSinceEpoch}',
-                                authorName: 'User Baru',
+                                authorId: userId,
+                                authorName: userName,
                               ),
                             );
-                            Navigator.pop(dialogContext); // Tutup dialog
+                            Navigator.pop(dialogContext);
                           } else {
-                            // Tampilkan pesan error jika form kosong
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: const Text(
@@ -795,44 +793,43 @@ class _CommunityViewState extends State<CommunityView> {
                             );
                           }
                         },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _isCreatingQuestion 
-                              ? Colors.grey[400] 
-                              : const Color(0xFFFFD700),
-                          foregroundColor: Colors.black87,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: _isCreatingQuestion
-                            ? const Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.black87),
-                                    ),
-                                  ),
-                                  SizedBox(width: 12),
-                                  Text(
-                                    'Mengirim...',
-                                    style: TextStyle(fontWeight: FontWeight.bold),
-                                  ),
-                                ],
-                              )
-                            : const Text(
-                                'Kirim Pertanyaan',
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                      ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _isCreatingQuestion
+                        ? Colors.grey[400]
+                        : const Color(0xFFFFD700),
+                    foregroundColor: Colors.black87,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                  ],
+                  ),
+                  child: _isCreatingQuestion
+                      ? const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.black87,
+                                ),
+                              ),
+                            ),
+                            SizedBox(width: 12),
+                            Text(
+                              'Mengirim...',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        )
+                      : const Text(
+                          'Kirim Pertanyaan',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
                 ),
-              ),
+              ],
             );
           },
         );

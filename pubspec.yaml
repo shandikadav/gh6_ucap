@@ -29,6 +29,7 @@ environment:
 # versions available, run `flutter pub outdated`.
 dependencies:
   cached_network_image: ^3.4.1
+  carousel_slider: ^5.1.1
   cloud_firestore: ^5.6.7
   confetti: ^0.7.0
   cupertino_icons: ^1.0.8
@@ -50,6 +51,8 @@ dependencies:
   shared_preferences: ^2.5.3
   step_progress_indicator: ^1.0.2
   timeago: ^3.7.1
+  google_generative_ai: ^0.4.7
+  flutter_markdown_plus: ^1.0.3
 
 dev_dependencies:
   flutter_lints: ^5.0.0

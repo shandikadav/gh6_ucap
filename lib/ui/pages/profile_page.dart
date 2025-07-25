@@ -114,7 +114,7 @@ class _ProfileViewState extends State<ProfileView>
     setState(() {
       userName = userData['fullname'] ?? 'User';
       currentXP = userData['currentLevelExp'] ?? 0;
-      nextLevelXP = userData['nextLevelExp'] ?? 1000;
+      nextLevelXP = userData['nextLevelExp'] ?? 250;
       currentLevel = userData['level'] ?? 1;
       totalScenarios = userData['totalScenarios'] ?? 0;
       totalArticles = userData['totalArticles'] ?? 0;

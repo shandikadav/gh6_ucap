@@ -4,15 +4,18 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gh6_ucap/bloc/auth/auth_bloc.dart';
-import 'package:gh6_ucap/bloc/community/community_bloc.dart';
 import 'package:gh6_ucap/bloc/login/login_bloc.dart';
 import 'package:gh6_ucap/firebase_options.dart';
+import 'package:gh6_ucap/firebase_seeder.dart';
 import 'package:gh6_ucap/routes/routes.dart';
-import 'package:gh6_ucap/services/community_service.dart';
+import 'package:gh6_ucap/services/article_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  final ArticleService articleService = ArticleService();
+  await FirebaseSeeder.seedAllData();
+  await articleService.seedArticles();
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
   ]).then((_) => runApp(MyApp()));
@@ -32,7 +35,10 @@ class MyApp extends StatelessWidget {
         designSize: const Size(412, 917),
         minTextAdapt: true,
         splitScreenMode: true,
-        builder: (context, child) => MaterialApp.router(routerConfig: routes),
+        builder: (context, child) => MaterialApp.router(
+          routerConfig: routes,
+          debugShowCheckedModeBanner: false,
+        ),
       ),
     );
   }

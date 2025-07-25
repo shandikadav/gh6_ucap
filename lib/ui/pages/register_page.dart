@@ -84,7 +84,7 @@ class _RegisterPageState extends State<RegisterPage> {
             Icons.arrow_back_ios_new_rounded,
             color: AppTheme.textPrimaryColor,
           ),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () => routes.goNamed(RouteName.login),
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,

@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:gh6_ucap/services/gemini_service.dart';
+import 'package:gh6_ucap/services/profile_service.dart';
+import 'package:gh6_ucap/services/user_preferences.dart';
 
 // DATA MODEL UNTUK MEMUDAHKAN
 class ScenarioStep {
@@ -58,6 +61,7 @@ class _ScenarioScreenState extends State<ScenarioScreen>
   late AnimationController _heartController;
   late AnimationController _reasonDialogController;
   late AnimationController _retryController;
+  final ProfileService _profileService = ProfileService();
 
   // State Management
   int currentStepIndex = 0;
@@ -68,9 +72,12 @@ class _ScenarioScreenState extends State<ScenarioScreen>
   bool needsRetry = false;
   String currentStoryText = '';
   ScenarioChoice? selectedChoice;
-  String userReason = '';
+  String _userReason = '';
   Timer? _textTimer;
   List<int> incorrectChoices = [];
+  final GeminiService _geminiService = GeminiService();
+  bool _isGeneratingFeedback = false;
+  String? _aiFeedback;
 
   // Data
   late List<ScenarioStep> scenarioSteps;
@@ -896,7 +903,9 @@ class _ScenarioScreenState extends State<ScenarioScreen>
       showReasonDialog = false;
       needsRetry = false;
       selectedChoice = null;
-      userReason = '';
+      _userReason = '';
+      _aiFeedback = null;
+      _isGeneratingFeedback = false;
       incorrectChoices.clear();
     });
 
@@ -1027,7 +1036,7 @@ class _ScenarioScreenState extends State<ScenarioScreen>
               ),
               SizedBox(height: 16.h),
               TextField(
-                onChanged: (value) => userReason = value,
+                onChanged: (value) => _userReason = value,
                 maxLines: 3,
                 decoration: InputDecoration(
                   hintText: 'Tulis alasanmu di sini...',
@@ -1050,7 +1059,7 @@ class _ScenarioScreenState extends State<ScenarioScreen>
             ),
             ElevatedButton(
               onPressed: () {
-                if (userReason.trim().isNotEmpty) {
+                if (_userReason.trim().isNotEmpty) {
                   Navigator.of(context).pop();
                   _processChoiceWithReason(choice, choiceIndex);
                 } else {
@@ -1082,12 +1091,39 @@ class _ScenarioScreenState extends State<ScenarioScreen>
     _reasonDialogController.forward(from: 0.0);
   }
 
-  void _processChoiceWithReason(ScenarioChoice choice, int choiceIndex) {
+  void _processChoiceWithReason(ScenarioChoice choice, int choiceIndex) async {
     setState(() {
       showFeedback = true;
+      _isGeneratingFeedback = true;
+      _aiFeedback = null;
     });
 
     _feedbackCardController.forward(from: 0.0);
+
+    try {
+      final feedback = await _geminiService.generateFeedback(
+        scenarioContext: scenarioSteps[currentStepIndex].story,
+        userChoice: choice.text,
+        userReason: _userReason,
+      );
+
+      // ✅ TAMBAHKAN INI - Simpan AI feedback
+      if (mounted) {
+        setState(() {
+          _aiFeedback = feedback;
+          _isGeneratingFeedback = false;
+        });
+      }
+    } catch (e) {
+      print('Error generating AI feedback: $e');
+      // ✅ TAMBAHKAN INI - Fallback jika AI gagal
+      if (mounted) {
+        setState(() {
+          _aiFeedback = "Ai sedang sibuk, coba lagi nanti.";
+          _isGeneratingFeedback = false;
+        });
+      }
+    }
 
     if (!choice.isCorrect) {
       // Add to incorrect choices
@@ -1161,7 +1197,6 @@ class _ScenarioScreenState extends State<ScenarioScreen>
 
   void _nextStep() {
     if (lives == 0) {
-      // Prevent continuing if no lives left
       _showGameOverDialog();
       return;
     }
@@ -1177,6 +1212,7 @@ class _ScenarioScreenState extends State<ScenarioScreen>
   }
 
   void _retryChoices() {
+    _loseLife();
     if (lives == 0) {
       // Prevent retry if no lives left
       _showGameOverDialog();
@@ -1188,7 +1224,9 @@ class _ScenarioScreenState extends State<ScenarioScreen>
       showChoices = true;
       needsRetry = false;
       selectedChoice = null;
-      userReason = '';
+      _userReason = '';
+      _aiFeedback = null;
+      _isGeneratingFeedback = false;
     });
     _feedbackCardController.reset();
   }
@@ -1287,68 +1325,231 @@ class _ScenarioScreenState extends State<ScenarioScreen>
     );
   }
 
-  void _showCompletionDialog() {
+  void _showCompletionDialog() async {
     final xpEarned = lives == 3
         ? 100
         : lives == 2
         ? 75
         : 50;
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20.r),
-        ),
-        title: Text('🎉 Selamat!', style: TextStyle(fontSize: 20.sp)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Kamu berhasil menyelesaikan skenario "${widget.scenarioTitle}"!',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16.sp),
-            ),
-            SizedBox(height: 16.h),
-            Text(
-              'Nyawa tersisa: $lives ❤️',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16.sp),
-            ),
-            SizedBox(height: 8.h),
-            Text(
-              '+$xpEarned XP earned!',
-              style: TextStyle(
-                color: Colors.green,
-                fontWeight: FontWeight.bold,
-                fontSize: 16.sp,
+
+    try {
+      print('🔄 Starting scenario completion: ${widget.scenarioTitle}');
+
+      // 🔥 GUNAKAN ProfileService.addExperience (sama seperti artikel)
+      await _profileService.addExperience(xpEarned);
+      print('✅ Scenario EXP saved via ProfileService: +$xpEarned');
+
+      // 🔥 UPDATE scenario completion list
+      final userData = await UserPreferences.getUserData();
+      if (userData != null) {
+        final completedScenarios = List<String>.from(
+          userData['completedScenarios'] ?? [],
+        );
+
+        if (!completedScenarios.contains(widget.scenarioTitle)) {
+          completedScenarios.add(widget.scenarioTitle);
+
+          final totalScenarios = userData['totalScenariosCompleted'] ?? 0;
+
+          final updatedData = Map<String, dynamic>.from(userData);
+          updatedData.addAll({
+            'completedScenarios': completedScenarios,
+            'totalScenariosCompleted': totalScenarios + 1,
+            'lastActivity': DateTime.now().toString(),
+            'lastScenarioCompleted': widget.scenarioTitle,
+            'lastScenarioCompletionDate': DateTime.now().toString(),
+          });
+
+          await UserPreferences.saveUserData(updatedData);
+          print('✅ Scenario completion saved to UserPreferences');
+        }
+      }
+
+      print('🎉 Scenario completion process finished successfully!');
+    } catch (e) {
+      print('❌ Error saving scenario completion: $e');
+      // Continue showing dialog even if save fails
+    }
+
+    // Show dialog setelah save
+    if (mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20.r),
+          ),
+          title: Column(
+            children: [
+              Container(
+                padding: EdgeInsets.all(16.w),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.amber.withOpacity(0.8), Colors.amber],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.celebration, color: Colors.white, size: 32.w),
               ),
-            ),
-            SizedBox(height: 8.h),
-            Text(
-              lives == 3
-                  ? 'Perfect! 🏆'
-                  : lives == 2
-                  ? 'Great job! 🥈'
-                  : 'Well done! 🥉',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 14.sp,
-                color: Colors.orange,
+              SizedBox(height: 12.h),
+              Text(
+                '🎉 Selamat!',
+                style: TextStyle(
+                  fontSize: 24.sp,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.amber[700],
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Kamu berhasil menyelesaikan scenario:',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14.sp, color: Colors.grey[600]),
+              ),
+              SizedBox(height: 8.h),
+              Container(
+                padding: EdgeInsets.all(12.w),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12.r),
+                  border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                ),
+                child: Text(
+                  '"${widget.scenarioTitle}"',
+                  style: TextStyle(
+                    fontSize: 16.sp,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue[700],
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              SizedBox(height: 16.h),
+
+              // Performance Stats
+              Container(
+                padding: EdgeInsets.all(16.w),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.green.withOpacity(0.1),
+                      Colors.green.withOpacity(0.05),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(12.r),
+                  border: Border.all(color: Colors.green.withOpacity(0.3)),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.favorite, color: Colors.red, size: 20.w),
+                        SizedBox(width: 8.w),
+                        Text(
+                          'Nyawa tersisa: $lives/3',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16.sp,
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 12.h),
+                    Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 20.w,
+                        vertical: 12.h,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Colors.amber.withOpacity(0.8), Colors.amber],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(16.r),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.amber.withOpacity(0.3),
+                            spreadRadius: 1,
+                            blurRadius: 4,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.stars, color: Colors.white, size: 24.w),
+                          SizedBox(width: 8.w),
+                          Text(
+                            '+$xpEarned EXP',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18.sp,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: 12.h),
+                    Text(
+                      lives == 3
+                          ? 'Perfect! Semua keputusan tepat! 🏆'
+                          : lives == 2
+                          ? 'Great job! Hampir sempurna! 🥈'
+                          : 'Well done! Terus belajar! 🥉',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14.sp,
+                        color: Colors.green[600],
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop(); // Close dialog
+                  Navigator.of(context).pop(); // Back to menu
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.amber,
+                  foregroundColor: Colors.white,
+                  padding: EdgeInsets.symmetric(vertical: 16.h),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12.r),
+                  ),
+                ),
+                child: Text(
+                  'Kembali ke Menu',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16.sp,
+                  ),
+                ),
               ),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).pop();
-            },
-            child: const Text('Selesai'),
-          ),
-        ],
-      ),
-    );
+      );
+    }
   }
 
   @override
@@ -1689,7 +1890,7 @@ class _ScenarioScreenState extends State<ScenarioScreen>
               padding: EdgeInsets.all(24.w),
               margin: EdgeInsets.all(20.w),
               constraints: BoxConstraints(
-                maxHeight: MediaQuery.of(context).size.height * 0.8,
+                maxHeight: MediaQuery.of(context).size.height * 0.85,
               ),
               decoration: BoxDecoration(
                 color: isCorrect
@@ -1710,62 +1911,10 @@ class _ScenarioScreenState extends State<ScenarioScreen>
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Icon(
-                          isCorrect
-                              ? Icons.check_circle_rounded
-                              : Icons.cancel_rounded,
-                          color: Colors.white,
-                          size: 28.w,
-                        ),
-                        SizedBox(width: 12.w),
-                        Expanded(
-                          child: Text(
-                            isCorrect
-                                ? 'Pilihan Tepat!'
-                                : 'Pilihan Kurang Tepat',
-                            style: TextStyle(
-                              fontSize: 20.sp,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    // Show lives lost warning if applicable
-                    if (!isCorrect && !needsRetry && lives > 0)
-                      Container(
-                        margin: EdgeInsets.only(top: 12.h),
-                        padding: EdgeInsets.all(8.w),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(8.r),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.favorite_border,
-                              color: Colors.white,
-                              size: 16.w,
-                            ),
-                            SizedBox(width: 8.w),
-                            Text(
-                              'Nyawa berkurang! Sisa: $lives ❤️',
-                              style: TextStyle(
-                                fontSize: 14.sp,
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
+                    // ... existing header code ...
                     SizedBox(height: 12.h),
+
+                    // User's reasoning
                     Container(
                       padding: EdgeInsets.all(12.w),
                       decoration: BoxDecoration(
@@ -1775,17 +1924,29 @@ class _ScenarioScreenState extends State<ScenarioScreen>
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            'Alasan kamu:',
-                            style: TextStyle(
-                              fontSize: 14.sp,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white70,
-                            ),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.psychology_rounded,
+                                color: Colors.white70,
+                                size: 16.w,
+                              ),
+                              SizedBox(width: 8.w),
+                              Text(
+                                'Alasan kamu:',
+                                style: TextStyle(
+                                  fontSize: 14.sp,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white70,
+                                ),
+                              ),
+                            ],
                           ),
                           SizedBox(height: 4.h),
                           Text(
-                            userReason,
+                            _userReason.isNotEmpty
+                                ? _userReason
+                                : 'Tidak ada alasan yang diberikan',
                             style: TextStyle(
                               fontSize: 14.sp,
                               color: Colors.white,
@@ -1795,36 +1956,134 @@ class _ScenarioScreenState extends State<ScenarioScreen>
                         ],
                       ),
                     ),
-                    SizedBox(height: 12.h),
-                    Text(
-                      selectedChoice!.feedback,
-                      style: TextStyle(
-                        fontSize: 16.sp,
-                        color: Colors.white,
-                        height: 1.5,
-                      ),
-                    ),
-                    Divider(color: Colors.white30, height: 24.h),
-                    Text(
-                      'Insight:',
-                      style: TextStyle(
-                        fontSize: 16.sp,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    SizedBox(height: 4.h),
-                    Text(
-                      selectedChoice!.reason,
-                      style: TextStyle(
-                        fontSize: 16.sp,
-                        color: Colors.white,
-                        height: 1.5,
-                      ),
-                    ),
-                    SizedBox(height: 20.h),
 
-                    // Button logic based on lives and game state
+                    SizedBox(height: 16.h),
+
+                    // ✅ TAMBAHKAN SECTION AI FEEDBACK INI
+                    Container(
+                      padding: EdgeInsets.all(16.w),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(12.r),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.3),
+                          width: 1,
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.smart_toy_rounded,
+                                color: Colors.white,
+                                size: 20.w,
+                              ),
+                              SizedBox(width: 8.w),
+                              Text(
+                                'Feedback Personal AI Mentor',
+                                style: TextStyle(
+                                  fontSize: 16.sp,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: 12.h),
+
+                          if (_isGeneratingFeedback)
+                            Row(
+                              children: [
+                                SizedBox(
+                                  width: 16.w,
+                                  height: 16.w,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white,
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(width: 12.w),
+                                Expanded(
+                                  child: Text(
+                                    'AI Mentor sedang menganalisis alasan kamu...',
+                                    style: TextStyle(
+                                      fontSize: 14.sp,
+                                      color: Colors.white70,
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            )
+                          else if (_aiFeedback != null)
+                            Text(
+                              _aiFeedback!,
+                              style: TextStyle(
+                                fontSize: 15.sp,
+                                color: Colors.white,
+                                height: 1.5,
+                              ),
+                            )
+                          else
+                            Text(
+                              'Memuat feedback personal...',
+                              style: TextStyle(
+                                fontSize: 15.sp,
+                                color: Colors.white70,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+
+                    SizedBox(height: 16.h),
+
+                    // Original Learning Insight
+                    Container(
+                      padding: EdgeInsets.all(12.w),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8.r),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.lightbulb_rounded,
+                                color: Colors.white70,
+                                size: 16.w,
+                              ),
+                              SizedBox(width: 8.w),
+                              Text(
+                                'Learning Insight:',
+                                style: TextStyle(
+                                  fontSize: 14.sp,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white70,
+                                ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: 4.h),
+                          Text(
+                            selectedChoice!.reason,
+                            style: TextStyle(
+                              fontSize: 14.sp,
+                              color: Colors.white,
+                              height: 1.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
                     if (lives == 0)
                       SizedBox(
                         width: double.infinity,

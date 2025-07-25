@@ -1,4 +1,5 @@
 import 'package:bloc/bloc.dart';
+import 'package:gh6_ucap/services/user_preferences.dart';
 import 'package:meta/meta.dart';
 import '../../services/profile_service.dart';
 
@@ -15,7 +16,7 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     on<CompleteQuest>(_onCompleteQuest);
     on<UpdateProfile>(_onUpdateProfile);
     on<RefreshProfile>(_onRefreshProfile);
-    on<SignOut>(_onSignOut);
+    // on<SignOut>(_onSignOut);
   }
 
   Future<void> _onLoadProfile(
@@ -43,23 +44,11 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     if (state is ProfileLoaded) {
       final currentState = state as ProfileLoaded;
 
-      // Check if quest is already completed
-      final dailyQuests =
-          currentState.userData['dailyQuests'] as Map<String, dynamic>;
-      final questKey = 'quest${event.questIndex}Completed';
-
-      if (dailyQuests[questKey] == true) {
-        // Quest already completed, no action needed
-        return;
-      }
-
       try {
-        emit(ProfileUpdating(userData: currentState.userData));
-
         await _profileService.completeQuest(event.questIndex, event.expGained);
 
-        // Reload profile data
-        final updatedUserData = await _profileService.getUserProfile();
+        // ✅ Ambil data terbaru dari SharedPreferences
+        final updatedUserData = await UserPreferences.getUserData();
         if (updatedUserData != null) {
           emit(
             ProfileQuestCompleted(
@@ -67,8 +56,6 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
               expGained: event.expGained,
             ),
           );
-
-          // Then emit normal loaded state
           await Future.delayed(const Duration(milliseconds: 100));
           emit(ProfileLoaded(userData: updatedUserData));
         }
@@ -123,13 +110,13 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     }
   }
 
-  Future<void> _onSignOut(SignOut event, Emitter<ProfileState> emit) async {
-    try {
-      await _profileService.signOut();
-      emit(ProfileSignedOut());
-    } catch (e) {
-      print('Error signing out: $e');
-      emit(ProfileError(message: 'Failed to sign out'));
-    }
-  }
+  // Future<void> _onSignOut(SignOut event, Emitter<ProfileState> emit) async {
+  //   try {
+  //     await _profileService.signOut();
+  //     emit(ProfileSignedOut());
+  //   } catch (e) {
+  //     print('Error signing out: $e');
+  //     emit(ProfileError(message: 'Failed to sign out'));
+  //   }
+  // }
 }
