@@ -36,9 +36,18 @@ final routes = GoRouter(
       builder: (context, state) => MainPage(),
     ),
     GoRoute(
-      path: '/adventure',
+      path: '/adventure/:scenarioTitle/:category',
       name: RouteName.adventure,
-      builder: (context, state) => SalaryNegotiationPage(),
+      builder: (context, state) {
+        final scenarioTitle =
+            state.pathParameters['scenarioTitle'] ?? 'Default Scenario';
+        final category = state.pathParameters['category'] ?? 'General';
+
+        return ScenarioScreen(
+          scenarioTitle: Uri.decodeComponent(scenarioTitle),
+          category: Uri.decodeComponent(category),
+        );
+      },
     ),
   ],
 );

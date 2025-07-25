@@ -1,24 +1,44 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
+import 'package:gh6_ucap/bloc/community/community_bloc.dart';
+import 'package:gh6_ucap/models/community_model.dart';
+import 'package:gh6_ucap/services/community_service.dart';
+import 'package:timeago/timeago.dart' as timeago;
 
-class CommunityPage extends StatefulWidget {
+class CommunityPage extends StatelessWidget {
   const CommunityPage({super.key});
 
   @override
-  _CommunityPageState createState() => _CommunityPageState();
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (context) => CommunityBloc(
+        communityRepository: CommunityRepository(),
+      )..add(FetchCommunityData()),
+      child: const CommunityView(),
+    );
+  }
 }
 
-class _CommunityPageState extends State<CommunityPage> {
-  // Perubahan 1: Menggunakan PageController untuk swipe antar halaman
+class CommunityView extends StatefulWidget {
+  const CommunityView({super.key});
+  @override
+  _CommunityViewState createState() => _CommunityViewState();
+}
+
+class _CommunityViewState extends State<CommunityView> {
   late PageController _pageController;
   int _selectedTab = 0;
+  bool _isCreatingQuestion = false;
 
   @override
   void initState() {
     super.initState();
     _pageController = PageController();
+    // Set timezone untuk timeago
+    timeago.setLocaleMessages('id', timeago.IdMessages());
   }
 
   @override
@@ -28,10 +48,7 @@ class _CommunityPageState extends State<CommunityPage> {
   }
 
   void _onTabTapped(int index) {
-    setState(() {
-      _selectedTab = index;
-    });
-    // Animasikan PageView saat tab di-tap
+    setState(() => _selectedTab = index);
     _pageController.animateToPage(
       index,
       duration: const Duration(milliseconds: 300),
@@ -43,7 +60,6 @@ class _CommunityPageState extends State<CommunityPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F5EE),
-      // Perubahan 2: AppBar dibuat minimalis dan menyatu dengan background
       appBar: AppBar(
         backgroundColor: const Color(0xFFF8F5EE),
         elevation: 0,
@@ -56,35 +72,147 @@ class _CommunityPageState extends State<CommunityPage> {
       ),
       body: Column(
         children: [
-          // Perubahan 3: Custom Tab Bar yang lebih modern
           _buildCustomTabBar(),
-          // Perubahan 4: Menggunakan PageView untuk konten yang bisa di-swipe
           Expanded(
-            child: PageView(
-              controller: _pageController,
-              onPageChanged: (index) {
-                setState(() {
-                  _selectedTab = index;
-                });
+            child: BlocConsumer<CommunityBloc, CommunityState>(
+              listener: (context, state) {
+                if (state is CommunityError) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error: ${state.message}'),
+                      backgroundColor: Colors.red,
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  );
+                } else if (state is CommunityQuestionCreated) {
+                  setState(() => _isCreatingQuestion = false);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Text('Pertanyaan berhasil dibuat!'),
+                      backgroundColor: Colors.green,
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  );
+                } else if (state is CommunityCreatingQuestion) {
+                  setState(() => _isCreatingQuestion = true);
+                }
               },
-              children: [_buildForumPage(), _buildMentorPage()],
+              builder: (context, state) {
+                if (state is CommunityLoading) {
+                  return const Center(
+                    child: CircularProgressIndicator(color: Color(0xFFFFD700)),
+                  );
+                }
+                
+                if (state is CommunityLoaded || state is CommunityCreatingQuestion) {
+                  final questions = state is CommunityLoaded 
+                      ? state.questions 
+                      : (state as CommunityCreatingQuestion).questions;
+                  final mentors = state is CommunityLoaded 
+                      ? state.mentors 
+                      : (state as CommunityCreatingQuestion).mentors;
+                      
+                  return RefreshIndicator(
+                    onRefresh: () async {
+                      context.read<CommunityBloc>().add(RefreshCommunityData());
+                    },
+                    child: PageView(
+                      controller: _pageController,
+                      onPageChanged: (index) =>
+                          setState(() => _selectedTab = index),
+                      children: [
+                        _buildForumPage(questions),
+                        _buildMentorPage(mentors),
+                      ],
+                    ),
+                  );
+                }
+                
+                if (state is CommunityError) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.error_outline,
+                          size: 64,
+                          color: Colors.grey[400],
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Terjadi kesalahan',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 32),
+                          child: Text(
+                            state.message,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[500],
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        ElevatedButton(
+                          onPressed: () {
+                            context.read<CommunityBloc>().add(FetchCommunityData());
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFFFD700),
+                            foregroundColor: Colors.black87,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text('Coba Lagi'),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+                
+                return const Center(child: Text('Silakan coba lagi.'));
+              },
             ),
           ),
-          SizedBox(height: 100.r),
         ],
       ),
       floatingActionButton: _selectedTab == 0
           ? FloatingActionButton.extended(
-              onPressed: () {
+              onPressed: _isCreatingQuestion ? null : () {
                 HapticFeedback.lightImpact();
                 _showCreateQuestionDialog(context);
               },
-              backgroundColor: const Color(0xFFFFD700),
+              backgroundColor: _isCreatingQuestion 
+                  ? Colors.grey[400] 
+                  : const Color(0xFFFFD700),
               foregroundColor: Colors.black87,
-              icon: const Icon(Icons.add_comment_rounded),
-              label: const Text(
-                'Tanya',
-                style: TextStyle(fontWeight: FontWeight.bold),
+              icon: _isCreatingQuestion
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.black87),
+                      ),
+                    )
+                  : const Icon(Icons.add_comment_rounded),
+              label: Text(
+                _isCreatingQuestion ? 'Mengirim...' : 'Tanya',
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
             )
           : null,
@@ -104,7 +232,6 @@ class _CommunityPageState extends State<CommunityPage> {
       ),
       child: Stack(
         children: [
-          // Perubahan 5: Indikator yang bergeser dengan animasi
           AnimatedPositioned(
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeInOut,
@@ -138,7 +265,7 @@ class _CommunityPageState extends State<CommunityPage> {
     return GestureDetector(
       onTap: () => _onTabTapped(index),
       child: Container(
-        color: Colors.transparent, // Membuat area tap transparan
+        color: Colors.transparent,
         alignment: Alignment.center,
         child: Text(
           title,
@@ -152,33 +279,39 @@ class _CommunityPageState extends State<CommunityPage> {
     );
   }
 
-  // Konten Forum dipisah menjadi method sendiri
-  Widget _buildForumPage() {
-    // Dummy data untuk forum
-    final questions = [
-      {
-        'title': 'Bagaimana cara negosiasi gaji saat fresh graduate?',
-        'content':
-            'Aku baru lulus dan dapat tawaran kerja. Tapi gajinya di bawah ekspektasi. Boleh ga sih nego gaji? Takut malah ditolak...',
-        'replies': 12,
-        'isAnonymous': true,
-      },
-      {
-        'title': 'Tips menghadapi diskriminasi di tempat kerja?',
-        'content':
-            'Ada yang pernah ngalamin diperlakukan beda karena background kita? Gimana cara ngatasinya ya?',
-        'replies': 8,
-        'isAnonymous': true,
-      },
-      {
-        'title': 'Rekomendasi tempat kos yang aman dan murah?',
-        'content':
-            'Lagi cari kos di area Jakarta Selatan budget 1-1.5 juta. Ada yang punya rekomendasi?',
-        'replies': 15,
-        'isAnonymous': false,
-      },
-    ];
-
+  Widget _buildForumPage(List<ForumQuestion> questions) {
+    if (questions.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.forum_outlined,
+              size: 64,
+              color: Colors.grey[400],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Belum ada pertanyaan',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[600],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Jadilah yang pertama bertanya!',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[500],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    
     return AnimationLimiter(
       child: ListView.builder(
         padding: const EdgeInsets.all(20),
@@ -190,14 +323,7 @@ class _CommunityPageState extends State<CommunityPage> {
             duration: const Duration(milliseconds: 400),
             child: SlideAnimation(
               verticalOffset: 50.0,
-              child: FadeInAnimation(
-                child: _buildQuestionCard(
-                  q['title'] as String,
-                  q['content'] as String,
-                  q['replies'] as int,
-                  q['isAnonymous'] as bool,
-                ),
-              ),
+              child: FadeInAnimation(child: _buildQuestionCard(q)),
             ),
           );
         },
@@ -205,33 +331,39 @@ class _CommunityPageState extends State<CommunityPage> {
     );
   }
 
-  // Konten Mentor dipisah menjadi method sendiri
-  Widget _buildMentorPage() {
-    // Dummy data untuk mentor
-    final mentors = [
-      {
-        'name': 'Budi Santoso',
-        'title': 'Mentor Karier',
-        'bio': 'HR Manager dengan 10+ tahun pengalaman',
-        'isOnline': true,
-        'skills': ['Review CV', 'Interview'],
-      },
-      {
-        'name': 'Sarah Wijaya',
-        'title': 'Konselor Keuangan',
-        'bio': 'Financial Planner bersertifikat CFP',
-        'isOnline': false,
-        'skills': ['Budgeting', 'Investasi'],
-      },
-      {
-        'name': 'Rendi Pratama',
-        'title': 'Mentor Soft Skills',
-        'bio': 'Corporate Trainer & Life Coach',
-        'isOnline': true,
-        'skills': ['Komunikasi', 'Leadership'],
-      },
-    ];
-
+  Widget _buildMentorPage(List<Mentor> mentors) {
+    if (mentors.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.people_outline,
+              size: 64,
+              color: Colors.grey[400],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Belum ada mentor tersedia',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[600],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Mentor akan segera hadir!',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[500],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    
     return AnimationLimiter(
       child: ListView.builder(
         padding: const EdgeInsets.all(20),
@@ -243,15 +375,7 @@ class _CommunityPageState extends State<CommunityPage> {
             duration: const Duration(milliseconds: 400),
             child: SlideAnimation(
               verticalOffset: 50.0,
-              child: FadeInAnimation(
-                child: _buildMentorCard(
-                  m['name'] as String,
-                  m['title'] as String,
-                  m['bio'] as String,
-                  m['isOnline'] as bool,
-                  m['skills'] as List<String>,
-                ),
-              ),
+              child: FadeInAnimation(child: _buildMentorCard(m)),
             ),
           );
         },
@@ -259,13 +383,7 @@ class _CommunityPageState extends State<CommunityPage> {
     );
   }
 
-  // Desain kartu pertanyaan sedikit di-tweak
-  Widget _buildQuestionCard(
-    String title,
-    String content,
-    int replies,
-    bool isAnonymous,
-  ) {
+  Widget _buildQuestionCard(ForumQuestion question) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
@@ -289,7 +407,7 @@ class _CommunityPageState extends State<CommunityPage> {
                 radius: 16,
                 backgroundColor: const Color(0xFFFFD700).withOpacity(0.2),
                 child: Icon(
-                  isAnonymous
+                  question.isAnonymous
                       ? Icons.help_outline_rounded
                       : Icons.person_outline_rounded,
                   size: 18,
@@ -299,7 +417,7 @@ class _CommunityPageState extends State<CommunityPage> {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  isAnonymous ? 'Anonim' : 'User123',
+                  question.authorName,
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
@@ -308,14 +426,14 @@ class _CommunityPageState extends State<CommunityPage> {
                 ),
               ),
               Text(
-                '2 jam yang lalu',
+                timeago.format(question.createdAt.toDate(), locale: 'id'),
                 style: TextStyle(fontSize: 12, color: Colors.grey[500]),
               ),
             ],
           ),
           const Divider(height: 24),
           Text(
-            title,
+            question.title,
             style: const TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
@@ -324,7 +442,7 @@ class _CommunityPageState extends State<CommunityPage> {
           ),
           const SizedBox(height: 8),
           Text(
-            content,
+            question.content,
             style: TextStyle(
               fontSize: 14,
               color: Colors.grey[700],
@@ -343,15 +461,22 @@ class _CommunityPageState extends State<CommunityPage> {
               ),
               const SizedBox(width: 4),
               Text(
-                '$replies balasan',
+                '${question.replyCount} balasan',
                 style: TextStyle(fontSize: 12, color: Colors.grey[500]),
               ),
               const Spacer(),
               TextButton(
                 onPressed: () {
-                  
+                  HapticFeedback.lightImpact();
+                  // Navigate to question detail (implement later)
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Detail pertanyaan akan segera tersedia'),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
                 },
-                child: Text(
+                child: const Text(
                   'Lihat Detail',
                   style: TextStyle(
                     fontSize: 12,
@@ -367,14 +492,7 @@ class _CommunityPageState extends State<CommunityPage> {
     );
   }
 
-  // Desain kartu mentor sedikit di-tweak
-  Widget _buildMentorCard(
-    String name,
-    String title,
-    String bio,
-    bool isOnline,
-    List<String> skills,
-  ) {
+  Widget _buildMentorCard(Mentor mentor) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
@@ -398,13 +516,18 @@ class _CommunityPageState extends State<CommunityPage> {
                   CircleAvatar(
                     radius: 30,
                     backgroundColor: const Color(0xFFFFD700).withOpacity(0.2),
-                    child: Icon(
-                      Icons.person,
-                      size: 30,
-                      color: Color(0xFFC7A500),
-                    ),
+                    backgroundImage: mentor.profilePictureUrl.isNotEmpty
+                        ? NetworkImage(mentor.profilePictureUrl)
+                        : null,
+                    child: mentor.profilePictureUrl.isEmpty
+                        ? Icon(
+                            Icons.person,
+                            size: 30,
+                            color: Color(0xFFC7A500),
+                          )
+                        : null,
                   ),
-                  if (isOnline)
+                  if (mentor.isOnline)
                     Positioned(
                       bottom: 0,
                       right: 0,
@@ -426,7 +549,7 @@ class _CommunityPageState extends State<CommunityPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      name,
+                      mentor.name,
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -435,7 +558,7 @@ class _CommunityPageState extends State<CommunityPage> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      title,
+                      mentor.title,
                       style: const TextStyle(
                         fontSize: 14,
                         color: Color(0xFFC7A500),
@@ -445,159 +568,275 @@ class _CommunityPageState extends State<CommunityPage> {
                   ],
                 ),
               ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: mentor.isOnline 
+                      ? const Color(0xFF4CAF50).withOpacity(0.1)
+                      : Colors.grey.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: mentor.isOnline 
+                        ? const Color(0xFF4CAF50).withOpacity(0.3)
+                        : Colors.grey.withOpacity(0.3),
+                  ),
+                ),
+                child: Text(
+                  mentor.isOnline ? 'Online' : 'Offline',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: mentor.isOnline ? const Color(0xFF4CAF50) : Colors.grey,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           Text(
-            bio,
+            mentor.bio,
             style: TextStyle(fontSize: 12, color: Colors.grey[600]),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
-          const Divider(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: skills
-                    .map(
-                      (skill) => Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFD700).withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          skill,
-                          style: const TextStyle(
-                            fontSize: 10,
-                            color: Color(0xFFC7A500),
-                            fontWeight: FontWeight.w500,
-                          ),
+          if (mentor.skills.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: mentor.skills.take(4)
+                  .map(
+                    (skill) => Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFD700).withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: const Color(0xFFFFD700).withOpacity(0.3),
                         ),
                       ),
-                    )
-                    .toList(),
-              ),
-              ElevatedButton(
-                onPressed: () => HapticFeedback.lightImpact(),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF4CAF50),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                      child: Text(
+                        skill,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: Color(0xFFC7A500),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ],
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: mentor.isOnline ? () {
+                HapticFeedback.lightImpact();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Memulai chat dengan ${mentor.name}'),
+                    backgroundColor: Colors.green,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
-                  elevation: 0,
+                );
+              } : null,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4CAF50),
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: Colors.grey[300],
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Text(
-                  'Chat',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(vertical: 12),
               ),
-            ],
+              child: Text(
+                mentor.isOnline ? 'Mulai Chat' : 'Sedang Offline',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 
-  // Dialog tidak banyak berubah, hanya styling
+  /// Dialog untuk membuat pertanyaan baru, sekarang terhubung dengan BLoC.
   void _showCreateQuestionDialog(BuildContext context) {
+    final titleController = TextEditingController();
+    final contentController = TextEditingController();
+    bool isAnonymous = true; // Default ke anonim
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
-        ),
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(24),
-              topRight: Radius.circular(24),
-            ),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 20),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(2),
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+              ),
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(24),
+                    topRight: Radius.circular(24),
                   ),
                 ),
-              ),
-              const Text(
-                'Buat Pertanyaan Baru',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 20),
-              TextField(
-                decoration: InputDecoration(
-                  labelText: 'Judul Pertanyaan',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                maxLines: 4,
-                decoration: InputDecoration(
-                  labelText: 'Detail Pertanyaan',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-              SwitchListTile.adaptive(
-                title: const Text('Kirim sebagai anonim'),
-                value: true,
-                onChanged: (value) {},
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                activeColor: Color(0xFFFFD700),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFFFD700),
-                    foregroundColor: Colors.black87,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        margin: const EdgeInsets.only(bottom: 20),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[300],
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
                     ),
-                  ),
-                  child: const Text(
-                    'Kirim Pertanyaan',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
+                    const Text(
+                      'Buat Pertanyaan Baru',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    TextField(
+                      controller: titleController,
+                      decoration: InputDecoration(
+                        labelText: 'Judul Pertanyaan',
+                        hintText: 'Tulis judul pertanyaan Anda...',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Color(0xFFFFD700)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: contentController,
+                      maxLines: 4,
+                      decoration: InputDecoration(
+                        labelText: 'Detail Pertanyaan',
+                        hintText: 'Jelaskan pertanyaan Anda secara detail...',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Color(0xFFFFD700)),
+                        ),
+                      ),
+                    ),
+                    SwitchListTile.adaptive(
+                      title: const Text('Kirim sebagai anonim'),
+                      subtitle: const Text('Identitas Anda akan disembunyikan'),
+                      value: isAnonymous,
+                      onChanged: (value) =>
+                          setModalState(() => isAnonymous = value),
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      activeColor: const Color(0xFFFFD700),
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _isCreatingQuestion ? null : () {
+                          // Validasi sederhana
+                          if (titleController.text.trim().isNotEmpty &&
+                              contentController.text.trim().isNotEmpty) {
+                            // Memicu event BLoC untuk menambahkan pertanyaan
+                            context.read<CommunityBloc>().add(
+                              AddForumQuestion(
+                                title: titleController.text.trim(),
+                                content: contentController.text.trim(),
+                                isAnonymous: isAnonymous,
+                                // TODO: Get real user data from auth service
+                                authorId: 'user_${DateTime.now().millisecondsSinceEpoch}',
+                                authorName: 'User Baru',
+                              ),
+                            );
+                            Navigator.pop(dialogContext); // Tutup dialog
+                          } else {
+                            // Tampilkan pesan error jika form kosong
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: const Text(
+                                  'Judul dan detail tidak boleh kosong!',
+                                ),
+                                backgroundColor: Colors.orange,
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _isCreatingQuestion 
+                              ? Colors.grey[400] 
+                              : const Color(0xFFFFD700),
+                          foregroundColor: Colors.black87,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: _isCreatingQuestion
+                            ? const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.black87),
+                                    ),
+                                  ),
+                                  SizedBox(width: 12),
+                                  Text(
+                                    'Mengirim...',
+                                    style: TextStyle(fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              )
+                            : const Text(
+                                'Kirim Pertanyaan',
+                                style: TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
-        ),
-      ),
+            );
+          },
+        );
+      },
     );
   }
 }

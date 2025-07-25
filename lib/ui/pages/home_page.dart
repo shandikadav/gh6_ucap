@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:gh6_ucap/routes/routes.dart';
 import 'package:gh6_ucap/themes/theme.dart';
 import 'package:gh6_ucap/ui/pages/advanture_simulation_page.dart';
 import 'package:gh6_ucap/ui/pages/all_adventure_page.dart';
+import 'package:go_router/go_router.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -202,7 +204,16 @@ class _ContinueAdventureCard extends StatelessWidget {
           ),
           SizedBox(height: 20.h),
           ElevatedButton.icon(
-            onPressed: () {},
+            onPressed: () {
+              HapticFeedback.lightImpact();
+              context.pushNamed(
+                RouteName.adventure,
+                pathParameters: {
+                  'scenarioTitle': Uri.encodeComponent('Wawancara Kerja'),
+                  'category': Uri.encodeComponent('Karier'),
+                },
+              );
+            },
             icon: const Icon(Icons.play_arrow_rounded),
             label: Text('Lanjutkan Petualangan', style: AppTheme.button),
             style: ElevatedButton.styleFrom(
@@ -255,7 +266,6 @@ class _StoryCard extends StatelessWidget {
 }
 
 class _OtherAdventuresSection extends StatelessWidget {
-  // [MODIFIKASI DATA]: Menambahkan key 'destination' untuk navigasi
   final adventures = [
     {
       'title': 'Simulasi Negosiasi Gaji',
@@ -263,7 +273,8 @@ class _OtherAdventuresSection extends StatelessWidget {
       'icon': Icons.trending_up_rounded,
       'color': AppTheme.accentColor,
       'isLocked': false,
-      'destination': const SalaryNegotiationPage(),
+      'scenarioTitle': 'Negosiasi Gaji',
+      'category': 'Karier',
     },
     {
       'title': 'Studi Kasus Budgeting',
@@ -271,15 +282,17 @@ class _OtherAdventuresSection extends StatelessWidget {
       'icon': Icons.request_quote_rounded,
       'color': AppTheme.successColor,
       'isLocked': false,
-      'destination': null,
+      'scenarioTitle': 'Budgeting Bulanan',
+      'category': 'Keuangan',
     },
     {
       'title': 'Menghadapi Diskriminasi',
       'tag': 'Sosial',
       'icon': Icons.groups_rounded,
       'color': const Color(0xFFF44336),
-      'isLocked': true,
-      'destination': null,
+      'isLocked': false,
+      'scenarioTitle': 'Menghadapi Diskriminasi',
+      'category': 'Sosial',
     },
   ];
 
@@ -331,22 +344,23 @@ class _OtherAdventuresSection extends StatelessWidget {
                 icon: adventure['icon'] as IconData,
                 color: adventure['color'] as Color,
                 isLocked: adventure['isLocked'] as bool,
-                destination: adventure['destination'] as Widget?,
+                scenarioTitle: adventure['scenarioTitle'] as String,
+                category: adventure['category'] as String,
               );
             },
           ),
         ),
+        SizedBox(height: 20.h),
       ],
     );
   }
 }
 
 class _AdventureCaseCard extends StatelessWidget {
-  final String title, tag;
+  final String title, tag, scenarioTitle, category;
   final IconData icon;
   final Color color;
   final bool isLocked;
-  final Widget? destination;
 
   const _AdventureCaseCard({
     required this.title,
@@ -354,7 +368,8 @@ class _AdventureCaseCard extends StatelessWidget {
     required this.icon,
     required this.color,
     required this.isLocked,
-    this.destination,
+    required this.scenarioTitle,
+    required this.category,
   });
 
   @override
@@ -370,12 +385,18 @@ class _AdventureCaseCard extends StatelessWidget {
         ),
       ),
       child: InkWell(
-        onTap: isLocked || destination == null
+        onTap: isLocked
             ? null
-            : () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => destination!),
-              ),
+            : () {
+                HapticFeedback.lightImpact();
+                context.pushNamed(
+                  RouteName.adventure,
+                  pathParameters: {
+                    'scenarioTitle': Uri.encodeComponent(scenarioTitle),
+                    'category': Uri.encodeComponent(category),
+                  },
+                );
+              },
         borderRadius: BorderRadius.circular(20.r),
         child: Stack(
           children: [

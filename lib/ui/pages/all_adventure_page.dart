@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:gh6_ucap/routes/routes.dart';
 import 'package:gh6_ucap/themes/theme.dart';
 import 'package:gh6_ucap/ui/pages/advanture_simulation_page.dart';
+import 'package:go_router/go_router.dart';
 
 class AllAdventuresPage extends StatelessWidget {
-  // [MODIFIKASI DATA]: Menambahkan key 'destination' untuk navigasi
   final adventures = [
     {
       'title': 'Simulasi Negosiasi Gaji',
@@ -12,7 +14,8 @@ class AllAdventuresPage extends StatelessWidget {
       'icon': Icons.trending_up_rounded,
       'color': AppTheme.accentColor,
       'isLocked': false,
-      'destination': const SalaryNegotiationPage(),
+      'scenarioTitle': 'Negosiasi Gaji',
+      'category': 'Karier',
     },
     {
       'title': 'Studi Kasus Budgeting Bulanan',
@@ -20,23 +23,35 @@ class AllAdventuresPage extends StatelessWidget {
       'icon': Icons.request_quote_rounded,
       'color': AppTheme.successColor,
       'isLocked': false,
-      'destination': null,
+      'scenarioTitle': 'Budgeting Bulanan',
+      'category': 'Keuangan',
     },
     {
       'title': 'Cara Menghadapi Diskriminasi',
       'tag': 'Sosial',
       'icon': Icons.groups_rounded,
       'color': const Color(0xFFF44336),
-      'isLocked': true,
-      'destination': null,
+      'isLocked': false,
+      'scenarioTitle': 'Menghadapi Diskriminasi',
+      'category': 'Sosial',
     },
     {
       'title': 'Latihan Wawancara User & HR',
       'tag': 'Karier',
       'icon': Icons.record_voice_over_rounded,
       'color': AppTheme.accentColor,
-      'isLocked': true,
-      'destination': null,
+      'isLocked': false,
+      'scenarioTitle': 'Wawancara Kerja',
+      'category': 'Karier',
+    },
+    {
+      'title': 'Mencari Tempat Tinggal',
+      'tag': 'Keuangan',
+      'icon': Icons.home_rounded,
+      'color': AppTheme.successColor,
+      'isLocked': false,
+      'scenarioTitle': 'Mencari Tempat Tinggal',
+      'category': 'Lifestyle',
     },
     {
       'title': 'Manajemen Utang dan Pinjaman',
@@ -44,7 +59,8 @@ class AllAdventuresPage extends StatelessWidget {
       'icon': Icons.credit_card_off_rounded,
       'color': AppTheme.successColor,
       'isLocked': true,
-      'destination': null,
+      'scenarioTitle': 'Manajemen Utang',
+      'category': 'Keuangan',
     },
   ];
 
@@ -71,7 +87,8 @@ class AllAdventuresPage extends StatelessWidget {
             icon: adventure['icon'] as IconData,
             color: adventure['color'] as Color,
             isLocked: adventure['isLocked'] as bool,
-            destination: adventure['destination'] as Widget?,
+            scenarioTitle: adventure['scenarioTitle'] as String,
+            category: adventure['category'] as String,
           );
         },
       ),
@@ -80,11 +97,10 @@ class AllAdventuresPage extends StatelessWidget {
 }
 
 class _VerticalAdventureCard extends StatelessWidget {
-  final String title, tag;
+  final String title, tag, scenarioTitle, category;
   final IconData icon;
   final Color color;
   final bool isLocked;
-  final Widget? destination;
 
   const _VerticalAdventureCard({
     required this.title,
@@ -92,7 +108,8 @@ class _VerticalAdventureCard extends StatelessWidget {
     required this.icon,
     required this.color,
     required this.isLocked,
-    this.destination,
+    required this.scenarioTitle,
+    required this.category,
   });
 
   @override
@@ -107,12 +124,30 @@ class _VerticalAdventureCard extends StatelessWidget {
           border: Border.all(color: Colors.grey.shade200),
         ),
         child: InkWell(
-          onTap: isLocked || destination == null
-              ? null
-              : () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => destination!),
-                ),
+          onTap: isLocked
+              ? () {
+                  HapticFeedback.heavyImpact();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Text('🔒 Petualangan ini belum terbuka!'),
+                      backgroundColor: Colors.orange,
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12.r),
+                      ),
+                    ),
+                  );
+                }
+              : () {
+                  HapticFeedback.lightImpact();
+                  context.pushNamed(
+                    RouteName.adventure,
+                    pathParameters: {
+                      'scenarioTitle': Uri.encodeComponent(scenarioTitle),
+                      'category': Uri.encodeComponent(category),
+                    },
+                  );
+                },
           borderRadius: BorderRadius.circular(16.r),
           child: Padding(
             padding: EdgeInsets.all(16.r),
@@ -149,7 +184,13 @@ class _VerticalAdventureCard extends StatelessWidget {
                   ),
                 ),
                 if (isLocked)
-                  Icon(Icons.lock_rounded, color: Colors.grey.shade400),
+                  Icon(Icons.lock_rounded, color: Colors.grey.shade400)
+                else
+                  Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    color: Colors.grey.shade400,
+                    size: 16.sp,
+                  ),
               ],
             ),
           ),
