@@ -4,6 +4,8 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gh6_ucap/themes/theme.dart';
 import 'package:gh6_ucap/ui/pages/advanture_simulation_page.dart';
 import 'package:gh6_ucap/ui/pages/all_adventure_page.dart';
+import 'package:gh6_ucap/ui/pages/pojok_info_page.dart';
+import 'package:gh6_ucap/models/article_progress.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -151,9 +153,54 @@ class _HeaderClipper extends CustomClipper<Path> {
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }
 
-class _ContinueAdventureCard extends StatelessWidget {
+class _ContinueAdventureCard extends StatefulWidget {
+  @override
+  State<_ContinueAdventureCard> createState() => _ContinueAdventureCardState();
+}
+
+class _ContinueAdventureCardState extends State<_ContinueAdventureCard> {
   @override
   Widget build(BuildContext context) {
+    final currentChapter = ArticleProgress.getCurrentChapter();
+    final requiredArticles =
+        ArticleProgress.getRequiredArticlesForCurrentChapter();
+    final readCount = ArticleProgress.getReadCount(requiredArticles);
+    final totalRequired = requiredArticles.length;
+    final allRequiredRead = ArticleProgress.areRequiredArticlesRead(
+      requiredArticles,
+    );
+    final progressPercentage = totalRequired > 0
+        ? readCount / totalRequired
+        : 1.0;
+
+    // Get chapter info
+    String chapterTitle = '';
+    String chapterSubtitle = '';
+    int chapterProgress = 0;
+
+    switch (currentChapter) {
+      case 'chapter_1':
+        chapterTitle = 'Memulai Perjalanan Karierku';
+        chapterSubtitle = 'Chapter 1 - Selesai ✓';
+        chapterProgress = 100;
+        break;
+      case 'chapter_2_preparation':
+        chapterTitle = 'Wawancara Kerja Pertamaku';
+        chapterSubtitle = 'Chapter 2 - Persiapan';
+        chapterProgress = 0;
+        break;
+      case 'chapter_2':
+        chapterTitle = 'Wawancara Kerja Pertamaku';
+        chapterSubtitle = 'Chapter 2';
+        chapterProgress = ArticleProgress.getChapterProgress('chapter_2');
+        break;
+      case 'chapter_3':
+        chapterTitle = 'Membangun Karier Impian';
+        chapterSubtitle = 'Chapter 3';
+        chapterProgress = ArticleProgress.getChapterProgress('chapter_3');
+        break;
+    }
+
     return Container(
       padding: const EdgeInsets.all(20).r,
       decoration: BoxDecoration(
@@ -168,49 +215,231 @@ class _ContinueAdventureCard extends StatelessWidget {
         ],
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Image.asset('assets/avatar.png', height: 100.h),
           SizedBox(height: 14.h),
-          Text(
-            'Wawancara Kerja Pertamaku',
-            textAlign: TextAlign.center,
-            style: AppTheme.h3,
-          ),
+          Text(chapterTitle, textAlign: TextAlign.center, style: AppTheme.h3),
           SizedBox(height: 4.h),
           Text(
-            'Chapter 2',
+            chapterSubtitle,
             style: AppTheme.body2.copyWith(color: AppTheme.primaryColorDark),
           ),
           SizedBox(height: 20.h),
+
+          // Progress artikel wajib (tampil jika belum semua dibaca)
+          if (!allRequiredRead && totalRequired > 0) ...[
+            Container(
+              padding: EdgeInsets.all(12.r),
+              decoration: BoxDecoration(
+                color: AppTheme.accentColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12.r),
+                border: Border.all(
+                  color: AppTheme.accentColor.withOpacity(0.3),
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        color: AppTheme.accentColor,
+                        size: 16.sp,
+                      ),
+                      SizedBox(width: 8.w),
+                      Expanded(
+                        child: Text(
+                          'Baca artikel wajib di Pojok Info untuk melanjutkan',
+                          style: AppTheme.caption.copyWith(
+                            color: AppTheme.accentColor,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 8.h),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Progress artikel wajib', style: AppTheme.caption),
+                      Text(
+                        '$readCount dari $totalRequired artikel',
+                        style: AppTheme.caption.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 4.h),
+                  LinearProgressIndicator(
+                    value: progressPercentage,
+                    backgroundColor: AppTheme.accentColor.withOpacity(0.2),
+                    color: AppTheme.accentColor,
+                    minHeight: 6.h,
+                    borderRadius: BorderRadius.circular(3.r),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(height: 16.h),
+          ],
+
+          // Progress chapter normal
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text('Progress Chapter', style: AppTheme.caption),
               Text(
-                '60%',
+                '$chapterProgress%',
                 style: AppTheme.caption.copyWith(fontWeight: FontWeight.bold),
               ),
             ],
           ),
           SizedBox(height: 4.h),
           LinearProgressIndicator(
-            value: 0.6,
+            value: chapterProgress / 100,
             backgroundColor: AppTheme.primaryColor.withOpacity(0.2),
             color: AppTheme.primaryColor,
             minHeight: 8.h,
             borderRadius: BorderRadius.circular(4.r),
           ),
           SizedBox(height: 20.h),
+
           ElevatedButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.play_arrow_rounded),
-            label: Text('Lanjutkan Petualangan', style: AppTheme.button),
+            onPressed: () {
+              if (allRequiredRead &&
+                  currentChapter != 'chapter_2_preparation') {
+                // Navigate to adventure
+                if (currentChapter == 'chapter_2') {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const SalaryNegotiationPage(),
+                    ),
+                  ).then((_) {
+                    // Refresh state when returning from adventure
+                    setState(() {});
+                  });
+                }
+              } else {
+                _showRequiredArticlesDialog(context);
+              }
+            },
+            icon: Icon(
+              allRequiredRead && currentChapter != 'chapter_2_preparation'
+                  ? Icons.play_arrow_rounded
+                  : Icons.lock_outline,
+            ),
+            label: Text(
+              allRequiredRead && currentChapter != 'chapter_2_preparation'
+                  ? 'Lanjutkan Petualangan'
+                  : 'Baca Artikel Wajib',
+              style: AppTheme.button,
+            ),
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primaryColor,
+              backgroundColor:
+                  allRequiredRead && currentChapter != 'chapter_2_preparation'
+                  ? AppTheme.primaryColor
+                  : AppTheme.accentColor,
               foregroundColor: AppTheme.textPrimaryColor,
               minimumSize: Size(double.infinity, 50.h),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16).r,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showRequiredArticlesDialog(BuildContext context) {
+    final requiredArticles =
+        ArticleProgress.getRequiredArticlesForCurrentChapter();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16.r),
+        ),
+        title: Text('Artikel Wajib', style: AppTheme.h3),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Sebelum memulai petualangan ini, kamu perlu membaca artikel berikut di Pojok Info:',
+                style: AppTheme.body2,
+              ),
+              SizedBox(height: 12.h),
+              ...requiredArticles.map((articleId) {
+                String title = _getArticleTitle(articleId);
+                bool isRead = ArticleProgress.isArticleRead(articleId);
+                return _buildRequiredArticleItem(title, isRead);
+              }),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Nanti')),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const PojokInfoPage()),
+              ).then((_) {
+                // Refresh state when returning from pojok info
+                setState(() {});
+              });
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryColor,
+            ),
+            child: Text('Ke Pojok Info'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getArticleTitle(String articleId) {
+    switch (articleId) {
+      case 'waspada_penipuan':
+        return 'Waspada Penipuan Lowongan Kerja';
+      case 'budget_bulanan':
+        return 'Cara Membuat Budget Bulanan yang Realistis';
+      case 'cv_menarik':
+        return 'Membuat CV yang Menarik';
+      case 'networking_profesional':
+        return 'Membangun Networking Profesional';
+      default:
+        return articleId;
+    }
+  }
+
+  Widget _buildRequiredArticleItem(String title, bool isRead) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 4.h),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            isRead ? Icons.check_circle : Icons.circle_outlined,
+            color: isRead ? AppTheme.successColor : Colors.grey,
+            size: 20.sp,
+          ),
+          SizedBox(width: 8.w),
+          Expanded(
+            child: Text(
+              title,
+              style: AppTheme.body2.copyWith(
+                decoration: isRead ? TextDecoration.lineThrough : null,
+                color: isRead ? Colors.grey : AppTheme.textPrimaryColor,
               ),
             ),
           ),

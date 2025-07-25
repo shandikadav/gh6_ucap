@@ -1,11 +1,7 @@
-// lib/pages/category_detail_page.dart
-
-import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'dart:math';
-
 import 'package:gh6_ucap/themes/theme.dart';
+import 'package:gh6_ucap/models/article_progress.dart';
 import 'material_detail_page.dart';
 
 class CategoryDetailPage extends StatefulWidget {
@@ -27,104 +23,127 @@ class CategoryDetailPage extends StatefulWidget {
 }
 
 class _CategoryDetailPageState extends State<CategoryDetailPage> {
-  late List<Map<String, dynamic>> _materials;
-  late ConfettiController _confettiController;
-  int _totalExpGained = 0;
+  late List<Map<String, dynamic>> materials;
 
   @override
   void initState() {
     super.initState();
-    _confettiController = ConfettiController(
-      duration: const Duration(seconds: 2),
-    );
-    _materials = _getMaterialsForCategory(widget.categoryId);
-    _totalExpGained = _materials.fold(
-      0,
-      (sum, item) => sum + (item['exp'] as int),
-    );
+    materials = _getMaterialsForCategory(widget.categoryId);
   }
 
-  // Data dummy terpusat
   List<Map<String, dynamic>> _getMaterialsForCategory(String categoryId) {
-    final allMaterials = {
-      'keuangan': [
-        {
-          'id': 'k1',
-          'title': 'Cara Membuat Anggaran Bulanan',
-          'type': 'artikel',
-          'exp': 20,
-          'isCompleted': false,
-        },
-        {
-          'id': 'k2',
-          'title': 'Video: Investasi untuk Pemula',
-          'type': 'video',
-          'exp': 35,
-          'isCompleted': false,
-        },
-        {
-          'id': 'k3',
-          'title': 'Memahami Dana Darurat',
-          'type': 'artikel',
-          'exp': 25,
-          'isCompleted': false,
-        },
-      ],
-      'karier': [
-        {
-          'id': 'c1',
-          'title': 'Tips Membuat CV ATS-Friendly',
-          'type': 'artikel',
-          'exp': 20,
-          'isCompleted': false,
-        },
-        {
-          'id': 'c2',
-          'title': 'Menjawab Pertanyaan Interview Sulit',
-          'type': 'video',
-          'exp': 40,
-          'isCompleted': false,
-        },
-      ],
-      'mental': [
-        {
-          'id': 'm1',
-          'title': 'Mengatasi Burnout di Tempat Kerja',
-          'type': 'artikel',
-          'exp': 30,
-          'isCompleted': false,
-        },
-      ],
-    };
-    return allMaterials[categoryId] ?? [];
+    switch (categoryId) {
+      case 'keuangan':
+        return [
+          {
+            'id': 'budget_bulanan',
+            'title': 'Cara Membuat Budget Bulanan yang Realistis',
+            'subtitle': 'Panduan lengkap mengelola keuangan bulanan',
+            'exp': 50,
+            'isCompleted': ArticleProgress.isArticleRead('budget_bulanan'),
+            'isRequired': true, // Artikel wajib untuk Chapter 2
+            'estimatedTime': '5 menit',
+          },
+          {
+            'id': 'investasi_pemula',
+            'title': 'Panduan Investasi untuk Pemula',
+            'subtitle': 'Mulai investasi dengan modal kecil',
+            'exp': 75,
+            'isCompleted': ArticleProgress.isArticleRead('investasi_pemula'),
+            'isRequired': false,
+            'estimatedTime': '8 menit',
+          },
+          {
+            'id': 'menabung_efektif',
+            'title': 'Tips Menabung yang Efektif',
+            'subtitle': 'Strategi menabung untuk masa depan',
+            'exp': 60,
+            'isCompleted': ArticleProgress.isArticleRead('menabung_efektif'),
+            'isRequired': false,
+            'estimatedTime': '6 menit',
+          },
+        ];
+      case 'karier':
+        return [
+          {
+            'id': 'waspada_penipuan',
+            'title': 'Waspada Penipuan Lowongan Kerja',
+            'subtitle': 'Kenali ciri-ciri lowongan kerja palsu',
+            'exp': 60,
+            'isCompleted': ArticleProgress.isArticleRead('waspada_penipuan'),
+            'isRequired': true, // Artikel wajib untuk Chapter 2
+            'estimatedTime': '7 menit',
+          },
+          {
+            'id': 'tips_wawancara',
+            'title': 'Tips Sukses Wawancara Kerja',
+            'subtitle': 'Persiapan menghadapi wawancara',
+            'exp': 80,
+            'isCompleted': ArticleProgress.isArticleRead('tips_wawancara'),
+            'isRequired': false,
+            'estimatedTime': '10 menit',
+          },
+          {
+            'id': 'cv_menarik',
+            'title': 'Membuat CV yang Menarik',
+            'subtitle': 'Template dan tips menulis CV',
+            'exp': 70,
+            'isCompleted': ArticleProgress.isArticleRead('cv_menarik'),
+            'isRequired': false, // Will be required for Chapter 3
+            'estimatedTime': '8 menit',
+          },
+          {
+            'id': 'networking_profesional',
+            'title': 'Membangun Networking Profesional',
+            'subtitle': 'Cara membangun relasi kerja yang baik',
+            'exp': 65,
+            'isCompleted': ArticleProgress.isArticleRead(
+              'networking_profesional',
+            ),
+            'isRequired': false, // Will be required for Chapter 3
+            'estimatedTime': '6 menit',
+          },
+        ];
+      default:
+        return [];
+    }
   }
 
   void _markMaterialAsCompleted(String materialId) {
     setState(() {
-      final index = _materials.indexWhere((m) => m['id'] == materialId);
+      final index = materials.indexWhere((m) => m['id'] == materialId);
       if (index != -1) {
-        _materials[index]['isCompleted'] = true;
+        materials[index]['isCompleted'] = true;
+        // Update global state
+        ArticleProgress.markArticleAsRead(materialId);
       }
     });
 
-    // Cek apakah semua materi sudah selesai
-    final allCompleted = _materials.every((m) => m['isCompleted'] == true);
+    final allCompleted = materials.every((m) => m['isCompleted'] == true);
     if (allCompleted) {
-      _confettiController.play();
-      _showModuleCompletedDialog(context);
-      widget
-          .onModuleCompleted(); // Panggil callback untuk buka modul selanjutnya
+      widget.onModuleCompleted();
     }
   }
 
   @override
-  void dispose() {
-    _confettiController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final currentChapter = ArticleProgress.getCurrentChapter();
+    final requiredArticles =
+        ArticleProgress.getRequiredArticlesForCurrentChapter();
+
+    // Filter materials for current chapter requirements
+    final requiredMaterials = materials
+        .where(
+          (m) => requiredArticles.contains(m['id']) || m['isRequired'] == true,
+        )
+        .toList();
+    final otherMaterials = materials
+        .where(
+          (m) =>
+              !requiredArticles.contains(m['id']) && m['isRequired'] == false,
+        )
+        .toList();
+
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
       appBar: AppBar(
@@ -133,203 +152,275 @@ class _CategoryDetailPageState extends State<CategoryDetailPage> {
         elevation: 0,
         foregroundColor: AppTheme.textPrimaryColor,
       ),
-      body: Stack(
-        alignment: Alignment.topCenter,
+      body: ListView(
+        padding: EdgeInsets.all(20.w),
         children: [
-          ListView.builder(
-            padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 10.h),
-            itemCount: _materials.length,
-            itemBuilder: (context, index) {
-              final material = _materials[index];
-              // Materi terkunci jika materi sebelumnya belum selesai
-              final bool isLocked =
-                  index > 0 && !_materials[index - 1]['isCompleted'];
-
-              return _MaterialCard(
-                title: material['title'] as String,
-                type: material['type'] as String,
-                exp: material['exp'] as int,
-                isCompleted: material['isCompleted'] as bool,
-                isLocked: isLocked,
-                color: widget.categoryColor,
-                onTap: () {
-                  if (!isLocked) {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => MaterialDetailPage(
-                          materialTitle: material['title'] as String,
-                          expGained: material['exp'] as int,
-                          // Kirim callback untuk menandai selesai
-                          onComplete: () => _markMaterialAsCompleted(
-                            material['id'] as String,
-                          ),
+          // Header dengan info artikel wajib
+          if (requiredMaterials.isNotEmpty) ...[
+            Container(
+              padding: EdgeInsets.all(16.r),
+              decoration: BoxDecoration(
+                color: widget.categoryColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12.r),
+                border: Border.all(
+                  color: widget.categoryColor.withOpacity(0.3),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.star_rounded,
+                        color: widget.categoryColor,
+                        size: 20.sp,
+                      ),
+                      SizedBox(width: 8.w),
+                      Text(
+                        'Artikel Wajib - ${_getChapterName(currentChapter)}',
+                        style: AppTheme.subtitle2.copyWith(
+                          color: widget.categoryColor,
                         ),
                       ),
-                    );
-                  }
-                },
-              );
-            },
-          ),
-          ConfettiWidget(
-            confettiController: _confettiController,
-            blastDirectionality: BlastDirectionality.explosive,
-            particleDrag: 0.05,
-            emissionFrequency: 0.05,
-            numberOfParticles: 20,
-            gravity: 0.1,
+                    ],
+                  ),
+                  SizedBox(height: 8.h),
+                  Text(
+                    'Baca artikel ini untuk melanjutkan petualangan',
+                    style: AppTheme.caption.copyWith(
+                      color: widget.categoryColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(height: 16.h),
+
+            // Artikel wajib
+            ...requiredMaterials.map(
+              (material) => Container(
+                margin: EdgeInsets.only(bottom: 12.h),
+                child: _MaterialCard(
+                  material: material,
+                  categoryColor: widget.categoryColor,
+                  isRequired: true,
+                  onTap: () => _navigateToMaterial(material),
+                ),
+              ),
+            ),
+
+            SizedBox(height: 24.h),
+            Text('Artikel Lainnya', style: AppTheme.subtitle1),
+            SizedBox(height: 12.h),
+          ],
+
+          // Artikel lainnya
+          ...otherMaterials.map(
+            (material) => Container(
+              margin: EdgeInsets.only(bottom: 12.h),
+              child: _MaterialCard(
+                material: material,
+                categoryColor: widget.categoryColor,
+                isRequired: false,
+                onTap: () => _navigateToMaterial(material),
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 
-  void _showModuleCompletedDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24.r),
+  String _getChapterName(String currentChapter) {
+    switch (currentChapter) {
+      case 'chapter_2_preparation':
+      case 'chapter_2':
+        return 'Chapter 2';
+      case 'chapter_3':
+        return 'Chapter 3';
+      default:
+        return 'Chapter 2';
+    }
+  }
+
+  void _navigateToMaterial(Map<String, dynamic> material) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => MaterialDetailPage(
+          materialTitle: material['title'],
+          expGained: material['exp'],
+          onComplete: () => _markMaterialAsCompleted(material['id']),
         ),
-        title: Column(
-          children: [
-            Icon(
-              Icons.stars_rounded,
-              color: AppTheme.primaryColor,
-              size: 48.sp,
-            ),
-            SizedBox(height: 16.h),
-            Text(
-              'Modul Selesai!',
-              textAlign: TextAlign.center,
-              style: AppTheme.h3,
-            ),
-          ],
-        ),
-        content: Text(
-          'Kerja bagus! Kamu telah menyelesaikan modul "${widget.categoryTitle}" dan mendapatkan total $_totalExpGained EXP. Modul berikutnya sekarang terbuka.',
-          textAlign: TextAlign.center,
-          style: AppTheme.body2,
-        ),
-        actions: [
-          Center(
-            child: TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: Text(
-                'Lanjutkan Petualangan',
-                style: AppTheme.button.copyWith(
-                  color: AppTheme.primaryColorDark,
-                ),
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
 }
 
 class _MaterialCard extends StatelessWidget {
-  final String title, type;
-  final int exp;
-  final bool isCompleted, isLocked;
-  final Color color;
+  final Map<String, dynamic> material;
+  final Color categoryColor;
+  final bool isRequired;
   final VoidCallback onTap;
 
   const _MaterialCard({
-    required this.title,
-    required this.type,
-    required this.exp,
-    required this.isCompleted,
-    required this.isLocked,
-    required this.color,
+    required this.material,
+    required this.categoryColor,
+    required this.isRequired,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Opacity(
-      opacity: isLocked ? 0.5 : 1.0,
-      child: GestureDetector(
-        onTap: isLocked ? null : onTap,
-        child: Container(
-          margin: EdgeInsets.only(bottom: 16.h),
-          padding: EdgeInsets.all(16.r),
-          decoration: BoxDecoration(
-            color: isCompleted
-                ? color.withOpacity(0.15)
-                : AppTheme.surfaceColor,
-            borderRadius: BorderRadius.circular(16.r),
-            boxShadow: [
-              if (!isLocked)
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                ),
-            ],
-            border: Border.all(
-              color: isCompleted ? color : Colors.transparent,
-              width: 1.5,
-            ),
+    final isCompleted = material['isCompleted'] as bool;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12.r),
+      child: Container(
+        padding: EdgeInsets.all(16.r),
+        decoration: BoxDecoration(
+          color: AppTheme.surfaceColor,
+          borderRadius: BorderRadius.circular(12.r),
+          border: Border.all(
+            color: isRequired
+                ? categoryColor.withOpacity(0.5)
+                : Colors.grey.shade200,
+            width: isRequired ? 2 : 1,
           ),
+        ),
+        child: IntrinsicHeight(
+          // Tambahkan ini untuk fix overflow
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start, // Ubah ke start
             children: [
+              // Status icon
               Container(
-                width: 50.w,
-                height: 50.w,
+                padding: EdgeInsets.all(8.r),
                 decoration: BoxDecoration(
-                  color: isLocked
-                      ? Colors.grey.shade300
-                      : color.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12.r),
+                  color: isCompleted
+                      ? AppTheme.successColor.withOpacity(0.1)
+                      : categoryColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8.r),
                 ),
                 child: Icon(
-                  isLocked
-                      ? Icons.lock_rounded
-                      : (type == 'artikel'
-                            ? Icons.article_rounded
-                            : Icons.play_circle_filled_rounded),
-                  color: isLocked ? Colors.grey.shade500 : color,
-                  size: 28.w,
+                  isCompleted ? Icons.check_circle : Icons.article_rounded,
+                  color: isCompleted ? AppTheme.successColor : categoryColor,
+                  size: 20.sp,
                 ),
               ),
-              SizedBox(width: 16.w),
+              SizedBox(width: 12.w),
+
+              // Content
               Expanded(
                 child: Column(
+                  mainAxisSize: MainAxisSize.min, // Tambahkan ini
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      title,
-                      style: AppTheme.subtitle2,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (!isLocked) ...[
-                      SizedBox(height: 8.h),
-                      Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 8.w,
-                          vertical: 4.h,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppTheme.primaryColor.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(8.r),
-                        ),
-                        child: Text(
-                          '+$exp XP',
-                          style: AppTheme.caption.copyWith(
-                            color: AppTheme.primaryColorDark,
-                            fontWeight: FontWeight.bold,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            material['title'],
+                            style: AppTheme.subtitle2.copyWith(
+                              decoration: isCompleted
+                                  ? TextDecoration.lineThrough
+                                  : null,
+                              color: isCompleted
+                                  ? Colors.grey
+                                  : AppTheme.textPrimaryColor,
+                            ),
+                            maxLines: 2, // Batasi lines
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
+                        if (isRequired)
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 6.w,
+                              vertical: 2.h,
+                            ),
+                            decoration: BoxDecoration(
+                              color: categoryColor.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(8.r),
+                            ),
+                            child: Text(
+                              'WAJIB',
+                              style: AppTheme.caption.copyWith(
+                                color: categoryColor,
+                                fontSize: 10.sp,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    SizedBox(height: 4.h),
+                    Text(
+                      material['subtitle'],
+                      style: AppTheme.caption.copyWith(
+                        color: isCompleted
+                            ? Colors.grey
+                            : AppTheme.textSecondaryColor,
                       ),
-                    ],
+                      maxLines: 2, // Batasi lines
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    SizedBox(height: 8.h),
+
+                    // Wrap dalam Flexible untuk mencegah overflow
+                    Flexible(
+                      child: Wrap(
+                        spacing: 16.w,
+                        runSpacing: 4.h,
+                        children: [
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.schedule,
+                                size: 14.sp,
+                                color: Colors.grey,
+                              ),
+                              SizedBox(width: 4.w),
+                              Text(
+                                material['estimatedTime'],
+                                style: AppTheme.caption,
+                              ),
+                            ],
+                          ),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.star_outline,
+                                size: 14.sp,
+                                color: Colors.amber,
+                              ),
+                              SizedBox(width: 4.w),
+                              Text(
+                                '${material['exp']} XP',
+                                style: AppTheme.caption.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (isCompleted)
+                            Text(
+                              'Selesai ✓',
+                              style: AppTheme.caption.copyWith(
+                                color: AppTheme.successColor,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
-              if (isCompleted)
-                Icon(Icons.check_circle_rounded, color: color, size: 24.w),
             ],
           ),
         ),

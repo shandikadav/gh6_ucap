@@ -1,10 +1,9 @@
-// lib/pages/salary_negotiation_page.dart
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:gh6_ucap/themes/theme.dart'; // Sesuaikan path
+import 'package:gh6_ucap/themes/theme.dart';
 import 'package:step_progress_indicator/step_progress_indicator.dart';
+import 'package:gh6_ucap/models/article_progress.dart';
 
 class SalaryNegotiationPage extends StatefulWidget {
   const SalaryNegotiationPage({super.key});
@@ -421,27 +420,57 @@ class _SalaryNegotiationPageState extends State<SalaryNegotiationPage>
   void _showSuccessDialog() {
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24.r),
+          borderRadius: BorderRadius.circular(16.r),
         ),
-        icon: Icon(
-          Icons.celebration_rounded,
-          color: AppTheme.primaryColor,
-          size: 48.sp,
+        title: Row(
+          children: [
+            Icon(Icons.celebration, color: Colors.amber, size: 28.sp),
+            SizedBox(width: 8.w),
+            Text('Selamat!', style: AppTheme.h3),
+          ],
         ),
-        title: Text('Simulasi Selesai!', style: AppTheme.h3),
-        content: Text(
-          'Hebat! Kamu berhasil menyelesaikan simulasi ini dan mendapatkan +150 EXP. Kamu selangkah lebih siap!',
-          style: AppTheme.body2,
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Kamu berhasil menyelesaikan simulasi wawancara kerja! Chapter 2 selesai.',
+              style: AppTheme.body2,
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 16.h),
+            Container(
+              padding: EdgeInsets.all(12.r),
+              decoration: BoxDecoration(
+                color: AppTheme.successColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8.r),
+              ),
+              child: Text(
+                '🎉 Chapter 2 Complete!\n✨ +200 XP\n🔓 Chapter 3 Unlocked',
+                style: AppTheme.caption.copyWith(
+                  color: AppTheme.successColor,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
         ),
         actions: [
           ElevatedButton(
             onPressed: () {
+              // Mark chapter as complete
+              ArticleProgress.completeChapter('chapter_2');
+
               Navigator.of(ctx).pop();
-              Navigator.of(context).pop(); // Kembali ke halaman home
+              Navigator.of(context).pop(); // Return to home
             },
-            child: const Text('Kembali ke Home'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryColor,
+            ),
+            child: Text('Lanjutkan'),
           ),
         ],
       ),
